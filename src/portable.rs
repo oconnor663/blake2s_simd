@@ -14,13 +14,13 @@ use crate::SIGMA;
 #[inline(always)]
 fn g(v: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize, x: u32, y: u32) {
     v[a] = v[a].wrapping_add(v[b]).wrapping_add(x);
-    v[d] = (v[d] ^ v[a]).rotate_right(32);
-    v[c] = v[c].wrapping_add(v[d]);
-    v[b] = (v[b] ^ v[c]).rotate_right(24);
-    v[a] = v[a].wrapping_add(v[b]).wrapping_add(y);
     v[d] = (v[d] ^ v[a]).rotate_right(16);
     v[c] = v[c].wrapping_add(v[d]);
-    v[b] = (v[b] ^ v[c]).rotate_right(63);
+    v[b] = (v[b] ^ v[c]).rotate_right(12);
+    v[a] = v[a].wrapping_add(v[b]).wrapping_add(y);
+    v[d] = (v[d] ^ v[a]).rotate_right(8);
+    v[c] = v[c].wrapping_add(v[d]);
+    v[b] = (v[b] ^ v[c]).rotate_right(7);
 }
 
 #[inline(always)]
@@ -97,8 +97,6 @@ pub fn compress(h: &mut StateWords, msg: &Block, count: u64, lastblock: u32, las
     round(7, &m, &mut v);
     round(8, &m, &mut v);
     round(9, &m, &mut v);
-    round(10, &m, &mut v);
-    round(11, &m, &mut v);
 
     h[0] ^= v[0] ^ v[8];
     h[1] ^= v[1] ^ v[9];

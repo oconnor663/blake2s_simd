@@ -1,30 +1,18 @@
 use super::*;
 
-const EMPTY_HASH: &str = "786a02f742015903c6c6fd852552d272912f4740e15847618a86e217f71f5419\
-                          d25e1031afee585313896444934eb04b903a685b1448b755d56f701afe9be2ce";
-const ABC_HASH: &str = "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d1\
-                        7d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923";
-const ONE_BLOCK_HASH: &str = "865939e120e6805438478841afb739ae4250cf372653078a065cdcfffca4caf7\
-                              98e6d462b65d658fc165782640eded70963449ae1500fb0f24981d7727e22c41";
-const THOUSAND_HASH: &str = "1ee4e51ecab5210a518f26150e882627ec839967f19d763e1508b12cfefed148\
-                             58f6a1c9d1f969bc224dc9440f5a6955277e755b9c513f9ba4421c5e50c8d787";
+const EMPTY_HASH: &str = "69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9";
+const ABC_HASH: &str = "508c5e8c327c14e2e1a72ba34eeb452f37458b209ed63a294d999b4c86675982";
+const ONE_BLOCK_HASH: &str = "ae09db7cd54f42b490ef09b6bc541af688e4959bb8c53f359a6f56e38ab454a3";
+const THOUSAND_HASH: &str = "37e9dd47498579c5343fd282c13c62ea824cdfc9b0f4f747a41347414640f62c";
 
-const BLOCK_OF_ONES: &str = "9bcba0ef17a9045ce7f060d2ec5f3616a53d2678dc6462cce9487f34b652c92b\
-                             90ebb8bfedf1bdfd4c94ccad95747ff767399ee51b21a530146c8ca283747890";
-const BLOCK_OF_TWOS: &str = "734b5b51a7a03c94f5c7a4ef741dbaf42b1f51414ad170fde7a0c9cc828fecde\
-                             181fcd61b4873ce1e08600fffc33643b3918bde9bf472dc810276e44dec49523";
-const BLOCK_OF_THREES: &str = "9061efb74384e444a08131e7860fd28917c7d122b1b52888e0f14637f5f6511a\
-                               9a0a77baa8c588d6f45282fd3a1b5b266e7172ad0c81ddb3a8d410201ede7263";
-const BLOCK_OF_FOURS: &str = "05ace7d3ee13e5211b7e22978a690af1cf80ba0772570d5454625d60b7da04e1\
-                              565bb75fd48bf6f1f29bd1f7e672bc9ef2ccc54e66773ab51a9cdf932ff96a8a";
-const BLOCK_OF_FIVES: &str = "9bcba0ef17a9045ce7f060d2ec5f3616a53d2678dc6462cce9487f34b652c92b\
-                              90ebb8bfedf1bdfd4c94ccad95747ff767399ee51b21a530146c8ca283747890";
-const BLOCK_OF_SIXES: &str = "734b5b51a7a03c94f5c7a4ef741dbaf42b1f51414ad170fde7a0c9cc828fecde\
-                              181fcd61b4873ce1e08600fffc33643b3918bde9bf472dc810276e44dec49523";
-const BLOCK_OF_SEVENS: &str = "9061efb74384e444a08131e7860fd28917c7d122b1b52888e0f14637f5f6511a\
-                               9a0a77baa8c588d6f45282fd3a1b5b266e7172ad0c81ddb3a8d410201ede7263";
-const BLOCK_OF_EIGHTS: &str = "05ace7d3ee13e5211b7e22978a690af1cf80ba0772570d5454625d60b7da04e1\
-                               565bb75fd48bf6f1f29bd1f7e672bc9ef2ccc54e66773ab51a9cdf932ff96a8a";
+const BLOCK_OF_ONES: &str = "dc3c4c7e77f743a2625e771cf71247d0a74821553b38600d0943316d5ff6987f";
+const BLOCK_OF_TWOS: &str = "f8b7bb9bd572ec5555592d19b476a5899334a004e9a181fad4b7236990d05329";
+const BLOCK_OF_THREES: &str = "43408522fdef2a8c010093bf726dea07954591677cc4bb0c58421dac49942186";
+const BLOCK_OF_FOURS: &str = "9d660d85e5a18fab0223c44932695f27639a73726590b563cf7b6aa09a73d594";
+const BLOCK_OF_FIVES: &str = "5bca39cc61c6a7beb4767bf2add509bd46cefe44a7755de72fe55707f88fb10d";
+const BLOCK_OF_SIXES: &str = "fc4daaafdd1111282445d562226bb98308b1b2682b66df87857a5ea041d01099";
+const BLOCK_OF_SEVENS: &str = "e0110d7690b3be39f4d06b37d3ab5352f3a6cbdccf03ae409d0719c88a81c648";
+const BLOCK_OF_EIGHTS: &str = "d9f493e092e69be49af15f25fdbc26c62b62e036b361b4431d33c7236fdeb134";
 
 fn compress_one(compress_fn: CompressFn) -> HexString {
     let mut state = State::new();
@@ -142,6 +130,7 @@ fn test_vectors() {
     ];
     // Test each input all at once.
     for &(input, output) in io {
+        println!("input {:?}", input);
         let hash = blake2s(input);
         assert_eq!(&hash.to_hex(), output, "hash mismatch");
     }
@@ -201,12 +190,12 @@ fn test_write() {
 //     b'foo',
 //     digest_size=18,
 //     key=b"bar",
-//     salt=b"bazbazbazbazbazb",
-//     person=b"bing bing bing b",
+//     salt=b"bazbazba",
+//     person=b"bing bin",
 //     fanout=2,
 //     depth=3,
 //     leaf_size=0x04050607,
-//     node_offset=0x08090a0b0c0d0e0f,
+//     node_offset=(2**48 - 1),
 //     node_depth=16,
 //     inner_size=17,
 //     last_node=True,
@@ -218,19 +207,19 @@ fn test_all_parameters() {
         // Make sure a shorter key properly overwrites a longer one.
         .key(b"not the real key")
         .key(b"bar")
-        .salt(b"bazbazbazbazbazb")
-        .personal(b"bing bing bing b")
+        .salt(b"bazbazba")
+        .personal(b"bing bin")
         .fanout(2)
         .max_depth(3)
         .max_leaf_length(0x04050607)
-        .node_offset(0x08090a0b0c0d0e0f)
+        .node_offset((1 << 48) - 1)
         .node_depth(16)
         .inner_hash_length(17)
         .to_state()
         .set_last_node(true)
         .update(b"foo")
         .finalize();
-    assert_eq!("ec0f59cb65f92e7fcca1280ba859a6925ded", &hash.to_hex());
+    assert_eq!("0d9841e93b8f1d4c0666da56e2bae569c13b", &hash.to_hex());
 }
 
 // #[test]
@@ -358,7 +347,7 @@ fn test_update8() {
             state0, state1, state2, state3, state4, state5, state6, state7, input0, input1, input2,
             input3, input4, input5, input6, input7,
         );
-        let output = finalize4(
+        let output = finalize8(
             state0, state1, state2, state3, state4, state5, state6, state7,
         );
 
@@ -384,12 +373,12 @@ fn test_update8() {
     let mut state_d = Params::new()
         .hash_length(18)
         .key(b"bar")
-        .salt(b"bazbazbazbazbazb")
-        .personal(b"bing bing bing b")
+        .salt(b"bazbazba")
+        .personal(b"bing bin")
         .fanout(2)
         .max_depth(3)
         .max_leaf_length(0x04050607)
-        .node_offset(0x08090a0b0c0d0e0f)
+        .node_offset((1 << 48) - 1)
         .node_depth(16)
         .inner_hash_length(17)
         .last_node(true)

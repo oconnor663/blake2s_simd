@@ -258,7 +258,7 @@ impl State {
                 IV[1] ^ (params.max_leaf_length as u32),
                 IV[2] ^ (params.node_offset as u32),
                 IV[3]
-                    ^ (params.node_offset << 32) as u32
+                    ^ (params.node_offset >> 32) as u32
                     ^ (params.node_depth as u32) << 16
                     ^ (params.inner_hash_length as u32) << 24,
                 IV[4] ^ LittleEndian::read_u32(salt_left),
@@ -587,7 +587,7 @@ pub fn update8(
     state3.update(input3);
 }
 
-pub fn finalize4(
+pub fn finalize8(
     state0: &mut State,
     state1: &mut State,
     state2: &mut State,
