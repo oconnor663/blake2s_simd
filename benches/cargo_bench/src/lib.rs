@@ -1,10 +1,6 @@
 #![feature(test)]
 
 extern crate blake2s_simd;
-#[cfg(feature = "libsodium-ffi")]
-extern crate libsodium_ffi;
-#[cfg(feature = "openssl")]
-extern crate openssl;
 extern crate test;
 
 use blake2s_simd::*;
@@ -141,46 +137,4 @@ fn bench_blake2s_update8_one_block(b: &mut Bencher) {
 fn bench_blake2s_update8_one_mb(b: &mut Bencher) {
     b.bytes = 8 * MB.len() as u64;
     b.iter(|| do_update8(MB));
-}
-
-#[cfg(feature = "libsodium-ffi")]
-#[bench]
-fn bench_libsodium_one_mb(b: &mut Bencher) {
-    b.bytes = MB.len() as u64;
-    let mut out = [0; 64];
-    unsafe {
-        let init_ret = libsodium_ffi::sodium_init();
-        assert_eq!(0, init_ret);
-    }
-    b.iter(|| unsafe {
-        libsodium_ffi::crypto_generichash(
-            out.as_mut_ptr(),
-            out.len(),
-            MB.as_ptr(),
-            MB.len() as u64,
-            std::ptr::null(),
-            0,
-        );
-    });
-}
-
-#[cfg(feature = "openssl")]
-#[bench]
-fn bench_openssl_md5_one_mb(b: &mut Bencher) {
-    b.bytes = MB.len() as u64;
-    b.iter(|| openssl::hash::hash(openssl::hash::MessageDigest::md5(), MB));
-}
-
-#[cfg(feature = "openssl")]
-#[bench]
-fn bench_openssl_sha1_one_mb(b: &mut Bencher) {
-    b.bytes = MB.len() as u64;
-    b.iter(|| openssl::hash::hash(openssl::hash::MessageDigest::sha1(), MB));
-}
-
-#[cfg(feature = "openssl")]
-#[bench]
-fn bench_openssl_sha512_one_mb(b: &mut Bencher) {
-    b.bytes = MB.len() as u64;
-    b.iter(|| openssl::hash::hash(openssl::hash::MessageDigest::sha512(), MB));
 }

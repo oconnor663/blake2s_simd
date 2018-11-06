@@ -2,7 +2,6 @@
 
 extern crate amd64_timer;
 extern crate blake2s_simd;
-extern crate openssl;
 extern crate test;
 
 use blake2s_simd::BLOCKBYTES;
@@ -132,38 +131,6 @@ fn blake2s_update8_one_mb() -> (u64, usize) {
     (total_ticks, iterations * SIZE)
 }
 
-fn sha1_openssl_one_mb() -> (u64, usize) {
-    const SIZE: usize = 1_000_000;
-    let iterations = TOTAL_BYTES_PER_TYPE / SIZE;
-    let mut total_ticks = 0;
-    for _ in 0..iterations {
-        let start = amd64_timer::ticks_modern();
-        test::black_box(&openssl::hash::hash(
-            openssl::hash::MessageDigest::sha1(),
-            &[0; SIZE],
-        ));
-        let end = amd64_timer::ticks_modern();
-        total_ticks += end - start;
-    }
-    (total_ticks, iterations * SIZE)
-}
-
-fn sha512_openssl_one_mb() -> (u64, usize) {
-    const SIZE: usize = 1_000_000;
-    let iterations = TOTAL_BYTES_PER_TYPE / SIZE;
-    let mut total_ticks = 0;
-    for _ in 0..iterations {
-        let start = amd64_timer::ticks_modern();
-        test::black_box(&openssl::hash::hash(
-            openssl::hash::MessageDigest::sha512(),
-            &[0; SIZE],
-        ));
-        let end = amd64_timer::ticks_modern();
-        total_ticks += end - start;
-    }
-    (total_ticks, iterations * SIZE)
-}
-
 fn main() {
     assert!(is_x86_feature_detected!("avx2"));
     let cases: &[(&str, fn() -> (u64, usize))] = &[
@@ -172,8 +139,6 @@ fn main() {
         ("BLAKE2s 1 MB", blake2s_one_mb),
         ("BLAKE2sp 1 MB", blake2sp_one_mb),
         ("BLAKE2s update8 1 MB", blake2s_update8_one_mb),
-        ("SHA1 OpenSSL 1 MB", sha1_openssl_one_mb),
-        ("SHA512 OpenSSL 1 MB", sha512_openssl_one_mb),
     ];
 
     for &(name, f) in cases.iter() {
