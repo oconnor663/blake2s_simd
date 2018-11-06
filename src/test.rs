@@ -109,15 +109,15 @@ fn test_all_compression_impls() {
     ];
     assert_eq!(expected_8, compress_eight(portable::compress8));
 
-    // // If we're on an AVX2 platform, test the AVX2 implementation.
-    // #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    // #[cfg(feature = "std")]
-    // {
-    //     if is_x86_feature_detected!("avx2") {
-    //         assert_eq!(expected_1, compress_one(avx2::compress));
-    //         assert_eq!(expected_4, compress_eight(avx2::compress4));
-    //     }
-    // }
+    // If we're on an AVX2 platform, test the AVX2 implementation.
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[cfg(feature = "std")]
+    {
+        if is_x86_feature_detected!("avx2") {
+            // Note that there is no avx2::compress for BLAKE2s.
+            assert_eq!(expected_8, compress_eight(avx2::compress8));
+        }
+    }
 }
 
 #[test]

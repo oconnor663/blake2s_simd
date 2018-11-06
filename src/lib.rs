@@ -16,7 +16,7 @@ use core::cmp;
 use core::fmt;
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-// mod avx2;
+mod avx2;
 mod portable;
 
 pub mod blake2sp;
@@ -474,7 +474,8 @@ fn default_compress_impl() -> (CompressFn, Compress8Fn) {
         #[cfg(feature = "std")]
         {
             if is_x86_feature_detected!("avx2") {
-                // return (avx2::compress, avx2::compress4);
+                // Note that there's no AVX2 compress implementation for BLAKE2s. Only compress8.
+                return (portable::compress, avx2::compress8);
             }
         }
     }
