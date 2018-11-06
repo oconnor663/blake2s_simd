@@ -1,0 +1,26 @@
+language: rust
+os:
+  - linux
+  - osx
+  - windows
+rust:
+  - stable
+  - beta
+  - nightly
+script:
+  # With std.
+  - cargo test -vv --all-features
+  # Without std.
+  - cargo test -vv --no-default-features
+  # Test the b2sum sub-crate.
+  - (cd b2sum && cargo test -vv)
+# Also run the tests on a non-x86, big-endian system.
+matrix:
+  include:
+    - name: "mips64"
+      os: linux
+      rust: stable
+      install:
+        - cargo install cross
+      script:
+        - cross test --target mips64-unknown-linux-gnuabi64 -vv --all-features
