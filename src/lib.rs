@@ -738,10 +738,8 @@ pub mod benchmarks {
     pub use crate::portable::compress as compress_portable;
     pub use crate::portable::compress8 as compress8_portable;
 
-    // #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    // pub use crate::avx2::compress as compress_avx2;
-    // #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    // pub use crate::avx2::compress4 as compress4_avx2;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    pub use crate::avx2::compress8 as compress8_avx2;
 
     // Safety: The portable implementation should be safe to call on any platform.
     pub fn force_portable(state: &mut crate::State) {

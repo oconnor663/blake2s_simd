@@ -8,7 +8,7 @@
 //! AVX2 regardless, because of its local annotations. Also the nightly compiler seems to produce
 //! faster code than stable.
 
-extern crate blake2b_simd;
+extern crate blake2s_simd;
 
 use std::time::{Duration, Instant};
 
@@ -53,41 +53,62 @@ fn run(input: &[u8], hash_fn: HashFn) {
 }
 
 fn hash_portable(input: &[u8]) {
-    let mut state = blake2b_simd::State::new();
-    blake2b_simd::benchmarks::force_portable(&mut state);
+    let mut state = blake2s_simd::State::new();
+    blake2s_simd::benchmarks::force_portable(&mut state);
     state.update(input);
     state.finalize();
 }
 
-fn hash_avx2(input: &[u8]) {
-    blake2b_simd::blake2b(input);
-}
-
-fn hash_update4(input: &[u8]) {
-    let mut state0 = blake2b_simd::State::new();
-    let mut state1 = blake2b_simd::State::new();
-    let mut state2 = blake2b_simd::State::new();
-    let mut state3 = blake2b_simd::State::new();
-    let quarter = input.len() / 4;
-    let input0 = &input[0 * quarter..][..quarter];
-    let input1 = &input[1 * quarter..][..quarter];
-    let input2 = &input[2 * quarter..][..quarter];
-    let input3 = &input[3 * quarter..][..quarter];
-    blake2b_simd::update4(
+fn hash_update8(input: &[u8]) {
+    let mut state0 = blake2s_simd::State::new();
+    let mut state1 = blake2s_simd::State::new();
+    let mut state2 = blake2s_simd::State::new();
+    let mut state3 = blake2s_simd::State::new();
+    let mut state4 = blake2s_simd::State::new();
+    let mut state5 = blake2s_simd::State::new();
+    let mut state6 = blake2s_simd::State::new();
+    let mut state7 = blake2s_simd::State::new();
+    let eighth = input.len() / 8;
+    let input0 = &input[0 * eighth..][..eighth];
+    let input1 = &input[1 * eighth..][..eighth];
+    let input2 = &input[2 * eighth..][..eighth];
+    let input3 = &input[3 * eighth..][..eighth];
+    let input4 = &input[4 * eighth..][..eighth];
+    let input5 = &input[5 * eighth..][..eighth];
+    let input6 = &input[6 * eighth..][..eighth];
+    let input7 = &input[7 * eighth..][..eighth];
+    blake2s_simd::update8(
         &mut state0,
         &mut state1,
         &mut state2,
         &mut state3,
+        &mut state4,
+        &mut state5,
+        &mut state6,
+        &mut state7,
         input0,
         input1,
         input2,
         input3,
+        input4,
+        input5,
+        input6,
+        input7,
     );
-    blake2b_simd::finalize4(&mut state0, &mut state1, &mut state2, &mut state3);
+    blake2s_simd::finalize8(
+        &mut state0,
+        &mut state1,
+        &mut state2,
+        &mut state3,
+        &mut state4,
+        &mut state5,
+        &mut state6,
+        &mut state7,
+    );
 }
 
-fn hash_blake2bp(input: &[u8]) {
-    blake2b_simd::blake2bp::blake2bp(input);
+fn hash_blake2sp(input: &[u8]) {
+    blake2s_simd::blake2sp::blake2sp(input);
 }
 
 fn main() {
@@ -97,15 +118,11 @@ fn main() {
     println!("run #1, the portable implementation");
     run(&input, hash_portable);
 
-    // Benchmark the AVX2 implementation.
-    println!("run #2, the AVX2 implementation");
-    run(&input, hash_avx2);
-
     // Benchmark the 4-way AVX2 implementation.
-    println!("run #3, the 4-way AVX2 implementation");
-    run(&input, hash_update4);
+    println!("run #2, the 4-way AVX2 implementation");
+    run(&input, hash_update8);
 
-    // Benchmark BLAKE2bp.
-    println!("run #4, BLAKE2bp");
-    run(&input, hash_blake2bp);
+    // Benchmark blake2sp.
+    println!("run #3, blake2sp");
+    run(&input, hash_blake2sp);
 }

@@ -4,4 +4,4 @@ version = "0.1.0"
 authors = ["Jack O'Connor <oconnor663@gmail.com>"]
 
 [dependencies]
-blake2b_simd = { path = "../.." }
+blake2s_simd = { path = "../.." }
