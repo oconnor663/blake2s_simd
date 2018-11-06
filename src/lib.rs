@@ -577,6 +577,10 @@ pub fn update8(
         input1 = &input1[BLOCKBYTES..];
         input2 = &input2[BLOCKBYTES..];
         input3 = &input3[BLOCKBYTES..];
+        input4 = &input4[BLOCKBYTES..];
+        input5 = &input5[BLOCKBYTES..];
+        input6 = &input6[BLOCKBYTES..];
+        input7 = &input7[BLOCKBYTES..];
     }
     // Finally, if there's any remaining input, add it into the state the usual way. Note that if
     // one of the inputs is short, this could actually be more work than the loop above. The caller
@@ -585,6 +589,10 @@ pub fn update8(
     state1.update(input1);
     state2.update(input2);
     state3.update(input3);
+    state4.update(input4);
+    state5.update(input5);
+    state6.update(input6);
+    state7.update(input7);
 }
 
 pub fn finalize8(

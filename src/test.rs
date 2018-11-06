@@ -389,17 +389,17 @@ fn test_update8() {
     let mut state_g = State::new();
     let mut state_h = State::new();
 
-    let mut input = [0; 35 * BLOCKBYTES];
+    let mut input = [0; 75 * BLOCKBYTES];
     paint_input(&mut input);
     let input_i = &input[0_ * BLOCKBYTES..10 * BLOCKBYTES];
     let input_j = &input[10 * BLOCKBYTES..20 * BLOCKBYTES];
     let input_k = &input[20 * BLOCKBYTES..30 * BLOCKBYTES];
-    // Input L is short.
-    let input_l = &input[30 * BLOCKBYTES..35 * BLOCKBYTES];
-    let input_m = &input[0_ * BLOCKBYTES..10 * BLOCKBYTES];
-    let input_n = &input[0_ * BLOCKBYTES..10 * BLOCKBYTES];
-    let input_o = &input[0_ * BLOCKBYTES..10 * BLOCKBYTES];
-    let input_p = &input[0_ * BLOCKBYTES..10 * BLOCKBYTES];
+    let input_l = &input[30 * BLOCKBYTES..40 * BLOCKBYTES];
+    let input_m = &input[40 * BLOCKBYTES..50 * BLOCKBYTES];
+    let input_n = &input[50 * BLOCKBYTES..60 * BLOCKBYTES];
+    let input_o = &input[60 * BLOCKBYTES..70 * BLOCKBYTES];
+    // Input P is short.
+    let input_p = &input[70 * BLOCKBYTES..75 * BLOCKBYTES];
 
     // Loop over eight different permutations of the input.
     for (input0, input1, input2, input3, input4, input5, input6, input7) in &[
