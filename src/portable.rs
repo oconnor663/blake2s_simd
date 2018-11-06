@@ -12,7 +12,7 @@ use crate::SIGMA;
 // Y are words of input, chosen by the caller according to the message
 // schedule, SIGMA.
 #[inline(always)]
-fn g(v: &mut [u64; 16], a: usize, b: usize, c: usize, d: usize, x: u64, y: u64) {
+fn g(v: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize, x: u32, y: u32) {
     v[a] = v[a].wrapping_add(v[b]).wrapping_add(x);
     v[d] = (v[d] ^ v[a]).rotate_right(32);
     v[c] = v[c].wrapping_add(v[d]);
@@ -24,7 +24,7 @@ fn g(v: &mut [u64; 16], a: usize, b: usize, c: usize, d: usize, x: u64, y: u64) 
 }
 
 #[inline(always)]
-fn round(r: usize, m: &[u64; 16], v: &mut [u64; 16]) {
+fn round(r: usize, m: &[u32; 16], v: &mut [u32; 16]) {
     // Select the message schedule based on the round.
     let s = SIGMA[r];
 
@@ -45,7 +45,7 @@ fn round(r: usize, m: &[u64; 16], v: &mut [u64; 16]) {
 // with zero bytes in the final block. `count` is the number of bytes fed so
 // far, including in this call, though not including padding in the final call.
 // `finalize` is set to true only in the final call.
-pub fn compress(h: &mut StateWords, msg: &Block, count: u128, lastblock: u64, lastnode: u64) {
+pub fn compress(h: &mut StateWords, msg: &Block, count: u64, lastblock: u32, lastnode: u32) {
     // Initialize the compression state.
     let mut v = [
         h[0],
@@ -60,31 +60,31 @@ pub fn compress(h: &mut StateWords, msg: &Block, count: u128, lastblock: u64, la
         IV[1],
         IV[2],
         IV[3],
-        IV[4] ^ count as u64,
-        IV[5] ^ (count >> 64) as u64,
+        IV[4] ^ count as u32,
+        IV[5] ^ (count >> 32) as u32,
         IV[6] ^ lastblock,
         IV[7] ^ lastnode,
     ];
 
     // Parse the message bytes as ints in little endian order.
-    let msg_refs = array_refs!(msg, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8);
+    let msg_refs = array_refs!(msg, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4);
     let m = [
-        LittleEndian::read_u64(msg_refs.0),
-        LittleEndian::read_u64(msg_refs.1),
-        LittleEndian::read_u64(msg_refs.2),
-        LittleEndian::read_u64(msg_refs.3),
-        LittleEndian::read_u64(msg_refs.4),
-        LittleEndian::read_u64(msg_refs.5),
-        LittleEndian::read_u64(msg_refs.6),
-        LittleEndian::read_u64(msg_refs.7),
-        LittleEndian::read_u64(msg_refs.8),
-        LittleEndian::read_u64(msg_refs.9),
-        LittleEndian::read_u64(msg_refs.10),
-        LittleEndian::read_u64(msg_refs.11),
-        LittleEndian::read_u64(msg_refs.12),
-        LittleEndian::read_u64(msg_refs.13),
-        LittleEndian::read_u64(msg_refs.14),
-        LittleEndian::read_u64(msg_refs.15),
+        LittleEndian::read_u32(msg_refs.0),
+        LittleEndian::read_u32(msg_refs.1),
+        LittleEndian::read_u32(msg_refs.2),
+        LittleEndian::read_u32(msg_refs.3),
+        LittleEndian::read_u32(msg_refs.4),
+        LittleEndian::read_u32(msg_refs.5),
+        LittleEndian::read_u32(msg_refs.6),
+        LittleEndian::read_u32(msg_refs.7),
+        LittleEndian::read_u32(msg_refs.8),
+        LittleEndian::read_u32(msg_refs.9),
+        LittleEndian::read_u32(msg_refs.10),
+        LittleEndian::read_u32(msg_refs.11),
+        LittleEndian::read_u32(msg_refs.12),
+        LittleEndian::read_u32(msg_refs.13),
+        LittleEndian::read_u32(msg_refs.14),
+        LittleEndian::read_u32(msg_refs.15),
     ];
 
     round(0, &m, &mut v);
@@ -110,30 +110,54 @@ pub fn compress(h: &mut StateWords, msg: &Block, count: u128, lastblock: u64, la
     h[7] ^= v[7] ^ v[15];
 }
 
-pub fn compress4(
+pub fn compress8(
     h0: &mut StateWords,
     h1: &mut StateWords,
     h2: &mut StateWords,
     h3: &mut StateWords,
+    h4: &mut StateWords,
+    h5: &mut StateWords,
+    h6: &mut StateWords,
+    h7: &mut StateWords,
     msg0: &Block,
     msg1: &Block,
     msg2: &Block,
     msg3: &Block,
-    count0: u128,
-    count1: u128,
-    count2: u128,
-    count3: u128,
-    lastblock0: u64,
-    lastblock1: u64,
-    lastblock2: u64,
-    lastblock3: u64,
-    lastnode0: u64,
-    lastnode1: u64,
-    lastnode2: u64,
-    lastnode3: u64,
+    msg4: &Block,
+    msg5: &Block,
+    msg6: &Block,
+    msg7: &Block,
+    count0: u64,
+    count1: u64,
+    count2: u64,
+    count3: u64,
+    count4: u64,
+    count5: u64,
+    count6: u64,
+    count7: u64,
+    lastblock0: u32,
+    lastblock1: u32,
+    lastblock2: u32,
+    lastblock3: u32,
+    lastblock4: u32,
+    lastblock5: u32,
+    lastblock6: u32,
+    lastblock7: u32,
+    lastnode0: u32,
+    lastnode1: u32,
+    lastnode2: u32,
+    lastnode3: u32,
+    lastnode4: u32,
+    lastnode5: u32,
+    lastnode6: u32,
+    lastnode7: u32,
 ) {
     compress(h0, msg0, count0, lastblock0, lastnode0);
     compress(h1, msg1, count1, lastblock1, lastnode1);
     compress(h2, msg2, count2, lastblock2, lastnode2);
     compress(h3, msg3, count3, lastblock3, lastnode3);
+    compress(h4, msg4, count4, lastblock4, lastnode4);
+    compress(h5, msg5, count5, lastblock5, lastnode5);
+    compress(h6, msg6, count6, lastblock6, lastnode6);
+    compress(h7, msg7, count7, lastblock7, lastnode7);
 }

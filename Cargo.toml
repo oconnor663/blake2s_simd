@@ -1,11 +1,9 @@
 [package]
-name = "blake2b_simd"
-version = "0.4.1"
+name = "blake2s_simd"
+version = "0.1.0"
 authors = ["Jack O'Connor"]
-description = "a pure Rust BLAKE2b implementation with dynamic SIMD"
+description = "EXPERIMENTAL"
 license = "MIT"
-repository = "https://github.com/oconnor663/blake2b_simd"
-documentation = "https://docs.rs/blake2b_simd"
 readme = "README.md"
 
 [features]
