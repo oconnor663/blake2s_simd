@@ -1,32 +1,9 @@
-//! An implementation of BLAKE2bp, a variant of BLAKE2b that takes advantage of the parallelism of
-//! modern processors.
-//!
-//! The AVX2 implementation of BLAKE2bp is about twice as fast that of BLAKE2b, because it's able
-//! to use AVX2's vector operations more efficiently. However, note that it's a different hash
-//! function, and it gives a different hash from BLAKE2b for the same input.
-//!
-//! # Example
-//!
-//! ```
-//! use blake2b_simd::blake2bp;
-//!
-//! let hash = blake2bp::Params::new()
-//!     .hash_length(16)
-//!     .key(b"The Magic Words are Squeamish Ossifrage")
-//!     .to_state()
-//!     .update(b"foo")
-//!     .update(b"bar")
-//!     .update(b"baz")
-//!     .finalize();
-//! assert_eq!("e69c7d2c42a5ac14948772231c68c552", &hash.to_hex());
-//! ```
-
 use core::cmp;
 use core::fmt;
-use crate::Compress4Fn;
+use crate::Compress8Fn;
 use crate::Hash;
-use crate::Params as Blake2bParams;
-use crate::State as Blake2bState;
+use crate::Params as Blake2sParams;
+use crate::State as Blake2sState;
 use crate::BLOCKBYTES;
 use crate::KEYBYTES;
 use crate::OUTBYTES;
@@ -34,34 +11,10 @@ use crate::OUTBYTES;
 #[cfg(feature = "std")]
 use std;
 
-/// Compute the BLAKE2bp hash of a slice of bytes, using default parameters.
-///
-/// # Example
-///
-/// ```
-/// # use blake2b_simd::blake2bp::blake2bp;
-/// let expected = "8ca9ccee7946afcb686fe7556628b5ba1bf9a691da37ca58cd049354d99f3704\
-///                 2c007427e5f219b9ab5063707ec6823872dee413ee014b4d02f2ebb6abb5f643";
-/// let hash = blake2bp(b"foo");
-/// assert_eq!(expected, &hash.to_hex());
-/// ```
-pub fn blake2bp(input: &[u8]) -> Hash {
+pub fn blake2sp(input: &[u8]) -> Hash {
     State::new().update(input).finalize()
 }
 
-/// A parameter builder for BLAKE2bp, just like the [`Params`](../struct.Params.html) type for
-/// BLAKE2b.
-///
-/// This builder only supports configuring the hash length and a secret key. This matches the
-/// options provided by the [reference
-/// implementation](https://github.com/BLAKE2/BLAKE2/blob/320c325437539ae91091ce62efec1913cd8093c2/ref/blake2.h#L162-L165).
-///
-/// # Example
-///
-/// ```
-/// use blake2b_simd::blake2bp;
-/// let mut state = blake2bp::Params::new().hash_length(32).to_state();
-/// ```
 #[derive(Clone)]
 pub struct Params {
     hash_length: u8,
@@ -70,19 +23,14 @@ pub struct Params {
 }
 
 impl Params {
-    /// Equivalent to `Params::default()`.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Construct a BLAKE2bp `State` object based on these parameters.
     pub fn to_state(&self) -> State {
         State::with_params(self)
     }
 
-    /// Set the length of the final hash, from 1 to `OUTBYTES` (64). Apart from controlling the
-    /// length of the final `Hash`, this is also associated data, and changing it will result in a
-    /// totally different hash.
     pub fn hash_length(&mut self, length: usize) -> &mut Self {
         assert!(
             1 <= length && length <= OUTBYTES,
@@ -93,8 +41,6 @@ impl Params {
         self
     }
 
-    /// Use a secret key, so that BLAKE2bp acts as a MAC. The maximum key length is `KEYBYTES`
-    /// (64). An empty key is equivalent to having no key at all.
     pub fn key(&mut self, key: &[u8]) -> &mut Self {
         assert!(key.len() <= KEYBYTES, "Bad key length: {}", key.len());
         self.key_length = key.len() as u8;
@@ -126,35 +72,21 @@ impl fmt::Debug for Params {
     }
 }
 
-/// An incremental hasher for BLAKE2bp, just like the [`State`](../struct.State.html) type for
-/// BLAKE2b.
-///
-/// # Example
-///
-/// ```
-/// use blake2b_simd::blake2bp;
-///
-/// let mut state = blake2bp::State::new();
-/// state.update(b"foo");
-/// state.update(b"bar");
-/// let hash = state.finalize();
-///
-/// let expected = "e654427b6ef02949471712263e59071abbb6aa94855674c1daeed6cfaf127c33\
-///                 dfa3205f7f7f71e4f0673d25fa82a368488911f446bccd323af3ab03f53e56e5";
-/// assert_eq!(expected, &hash.to_hex());
-/// ```
-#[derive(Clone)]
 pub struct State {
-    leaf0: Blake2bState,
-    leaf1: Blake2bState,
-    leaf2: Blake2bState,
-    leaf3: Blake2bState,
-    root: Blake2bState,
-    // Note that this buffer is twice as large as what compress4 needs. That guarantees that we
+    leaf0: Blake2sState,
+    leaf1: Blake2sState,
+    leaf2: Blake2sState,
+    leaf3: Blake2sState,
+    leaf4: Blake2sState,
+    leaf5: Blake2sState,
+    leaf6: Blake2sState,
+    leaf7: Blake2sState,
+    root: Blake2sState,
+    // Note that this buffer is twice as large as what compress8 needs. That guarantees that we
     // have enough input when we compress to know we don't need to finalize any of the leaves.
-    buf: [u8; 8 * BLOCKBYTES],
+    buf: [u8; 2 * 8 * BLOCKBYTES],
     buflen: u16,
-    compress4_fn: Compress4Fn,
+    compress8_fn: Compress8Fn,
 }
 
 impl State {
@@ -170,11 +102,11 @@ impl State {
     // correctly.) It might be nice to talk to the designers about whether this is the intended
     // state of affairs.
     fn with_params(params: &Params) -> Self {
-        let mut base_params = Blake2bParams::new();
+        let mut base_params = Blake2sParams::new();
         base_params
             .hash_length(params.hash_length as usize)
             .key(&params.key[..params.key_length as usize])
-            .fanout(4)
+            .fanout(8)
             .max_depth(2)
             .max_leaf_length(0)
             // Note that inner_hash_length is always OUTBYTES, regardless of the hash_length
@@ -186,7 +118,7 @@ impl State {
                 .clone()
                 .node_offset(worker_index)
                 .node_depth(0)
-                .last_node(worker_index == 3)
+                .last_node(worker_index == 7)
                 .to_state();
             // Force the output length to be OUTBYTES, matching the inner_hash_length parameter.
             // Note that the regular hash_length parameter still contributes associated data to
@@ -213,10 +145,14 @@ impl State {
             leaf1: leaf_state(1),
             leaf2: leaf_state(2),
             leaf3: leaf_state(3),
+            leaf4: leaf_state(4),
+            leaf5: leaf_state(5),
+            leaf6: leaf_state(6),
+            leaf7: leaf_state(7),
             root: root_state,
-            buf: [0; 8 * BLOCKBYTES],
+            buf: [0; 2 * 8 * BLOCKBYTES],
             buflen: 0,
-            compress4_fn: crate::default_compress_impl().1,
+            compress8_fn: crate::default_compress_impl().1,
         }
     }
 
@@ -227,13 +163,17 @@ impl State {
         *input = &input[take..];
     }
 
-    fn compress4(
-        input: &[u8; 4 * BLOCKBYTES],
-        leaf0: &mut Blake2bState,
-        leaf1: &mut Blake2bState,
-        leaf2: &mut Blake2bState,
-        leaf3: &mut Blake2bState,
-        compress4_fn: Compress4Fn,
+    fn compress8(
+        input: &[u8; 8 * BLOCKBYTES],
+        leaf0: &mut Blake2sState,
+        leaf1: &mut Blake2sState,
+        leaf2: &mut Blake2sState,
+        leaf3: &mut Blake2sState,
+        leaf4: &mut Blake2sState,
+        leaf5: &mut Blake2sState,
+        leaf6: &mut Blake2sState,
+        leaf7: &mut Blake2sState,
+        compress8_fn: Compress8Fn,
     ) {
         // Note that this is reaching into the underlying state objects, so it assumes they don't
         // get input through their normal update() interface. Also we can only call this when we're
@@ -242,28 +182,63 @@ impl State {
         debug_assert_eq!(0, leaf1.buflen);
         debug_assert_eq!(0, leaf2.buflen);
         debug_assert_eq!(0, leaf3.buflen);
+        debug_assert_eq!(0, leaf4.buflen);
+        debug_assert_eq!(0, leaf5.buflen);
+        debug_assert_eq!(0, leaf6.buflen);
+        debug_assert_eq!(0, leaf7.buflen);
         debug_assert_eq!(leaf0.count, leaf1.count);
         debug_assert_eq!(leaf0.count, leaf2.count);
         debug_assert_eq!(leaf0.count, leaf3.count);
-        leaf0.count += BLOCKBYTES as u128;
-        leaf1.count += BLOCKBYTES as u128;
-        leaf2.count += BLOCKBYTES as u128;
-        leaf3.count += BLOCKBYTES as u128;
-        let msg_refs = array_refs!(input, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES);
+        debug_assert_eq!(leaf0.count, leaf4.count);
+        debug_assert_eq!(leaf0.count, leaf5.count);
+        debug_assert_eq!(leaf0.count, leaf6.count);
+        debug_assert_eq!(leaf0.count, leaf7.count);
+        leaf0.count += BLOCKBYTES as u64;
+        leaf1.count += BLOCKBYTES as u64;
+        leaf2.count += BLOCKBYTES as u64;
+        leaf3.count += BLOCKBYTES as u64;
+        leaf4.count += BLOCKBYTES as u64;
+        leaf5.count += BLOCKBYTES as u64;
+        leaf6.count += BLOCKBYTES as u64;
+        leaf7.count += BLOCKBYTES as u64;
+        let msg_refs = array_refs!(
+            input, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES,
+            BLOCKBYTES, BLOCKBYTES
+        );
         unsafe {
-            (compress4_fn)(
+            (compress8_fn)(
                 &mut leaf0.h,
                 &mut leaf1.h,
                 &mut leaf2.h,
                 &mut leaf3.h,
+                &mut leaf4.h,
+                &mut leaf5.h,
+                &mut leaf6.h,
+                &mut leaf7.h,
                 msg_refs.0,
                 msg_refs.1,
                 msg_refs.2,
                 msg_refs.3,
+                msg_refs.4,
+                msg_refs.5,
+                msg_refs.6,
+                msg_refs.7,
                 leaf0.count,
                 leaf1.count,
                 leaf2.count,
                 leaf3.count,
+                leaf4.count,
+                leaf5.count,
+                leaf6.count,
+                leaf7.count,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
                 0,
                 0,
                 0,
@@ -288,50 +263,62 @@ impl State {
                 // The buffer is large enough for two compressions. If it's full and there's more
                 // input coming, always do at least the first compression, on the left half of the
                 // buffer.
-                Self::compress4(
-                    array_ref!(self.buf, 0, 4 * BLOCKBYTES),
+                Self::compress8(
+                    array_ref!(self.buf, 0, 8 * BLOCKBYTES),
                     &mut self.leaf0,
                     &mut self.leaf1,
                     &mut self.leaf2,
                     &mut self.leaf3,
-                    self.compress4_fn,
+                    &mut self.leaf4,
+                    &mut self.leaf5,
+                    &mut self.leaf6,
+                    &mut self.leaf7,
+                    self.compress8_fn,
                 );
-                self.buflen -= 4 * BLOCKBYTES as u16;
+                self.buflen -= 8 * BLOCKBYTES as u16;
                 // Now, if there's enough input still coming that all four leaves are going to get
                 // more, we can do the second compression and clear the buffer. Otherwise, we have
                 // to shift the remainder of the buffer to the left (and we know in this case the
                 // direct-from-memory loop will get skipped too).
-                if input.len() > 3 * BLOCKBYTES {
-                    Self::compress4(
-                        array_ref!(self.buf, 4 * BLOCKBYTES, 4 * BLOCKBYTES),
+                if input.len() > 7 * BLOCKBYTES {
+                    Self::compress8(
+                        array_ref!(self.buf, 8 * BLOCKBYTES, 8 * BLOCKBYTES),
                         &mut self.leaf0,
                         &mut self.leaf1,
                         &mut self.leaf2,
                         &mut self.leaf3,
-                        self.compress4_fn,
+                        &mut self.leaf4,
+                        &mut self.leaf5,
+                        &mut self.leaf6,
+                        &mut self.leaf7,
+                        self.compress8_fn,
                     );
                     self.buflen = 0;
                 } else {
-                    let (left, right) = self.buf.split_at_mut(4 * BLOCKBYTES);
+                    let (left, right) = self.buf.split_at_mut(8 * BLOCKBYTES);
                     left[..self.buflen as usize].copy_from_slice(&right[..self.buflen as usize]);
                 }
             }
         }
 
-        // While there are more than 7 input blocks coming, then we know that we can perform a
+        // While there are more than 15 input blocks coming, then we know that we can perform a
         // compression and still have more input coming for each leaf. (We also know that the
         // buffer must have been emptied above.)
-        while input.len() > 7 * BLOCKBYTES {
-            let block = array_ref!(input, 0, 4 * BLOCKBYTES);
-            Self::compress4(
+        while input.len() > 15 * BLOCKBYTES {
+            let block = array_ref!(input, 0, 8 * BLOCKBYTES);
+            Self::compress8(
                 block,
                 &mut self.leaf0,
                 &mut self.leaf1,
                 &mut self.leaf2,
                 &mut self.leaf3,
-                self.compress4_fn,
+                &mut self.leaf4,
+                &mut self.leaf5,
+                &mut self.leaf6,
+                &mut self.leaf7,
+                self.compress8_fn,
             );
-            input = &input[4 * BLOCKBYTES..];
+            input = &input[8 * BLOCKBYTES..];
         }
 
         // Buffer any remaining input, to be either compressed or finalized in a subsequent call.
@@ -347,9 +334,14 @@ impl State {
         let mut leaf1 = self.leaf1.clone();
         let mut leaf2 = self.leaf2.clone();
         let mut leaf3 = self.leaf3.clone();
+        let mut leaf4 = self.leaf4.clone();
+        let mut leaf5 = self.leaf5.clone();
+        let mut leaf6 = self.leaf6.clone();
+        let mut leaf7 = self.leaf7.clone();
         let chunks = array_refs!(
             &self.buf, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES,
-            BLOCKBYTES, BLOCKBYTES
+            BLOCKBYTES, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES, BLOCKBYTES,
+            BLOCKBYTES, BLOCKBYTES, BLOCKBYTES
         );
         let mut buflen = self.buflen as usize;
         leaf0.update(&chunks.0[..cmp::min(buflen, BLOCKBYTES)]);
@@ -360,28 +352,52 @@ impl State {
         buflen = buflen.saturating_sub(BLOCKBYTES);
         leaf3.update(&chunks.3[..cmp::min(buflen, BLOCKBYTES)]);
         buflen = buflen.saturating_sub(BLOCKBYTES);
-        leaf0.update(&chunks.4[..cmp::min(buflen, BLOCKBYTES)]);
+        leaf4.update(&chunks.4[..cmp::min(buflen, BLOCKBYTES)]);
         buflen = buflen.saturating_sub(BLOCKBYTES);
-        leaf1.update(&chunks.5[..cmp::min(buflen, BLOCKBYTES)]);
+        leaf5.update(&chunks.5[..cmp::min(buflen, BLOCKBYTES)]);
         buflen = buflen.saturating_sub(BLOCKBYTES);
-        leaf2.update(&chunks.6[..cmp::min(buflen, BLOCKBYTES)]);
+        leaf6.update(&chunks.6[..cmp::min(buflen, BLOCKBYTES)]);
         buflen = buflen.saturating_sub(BLOCKBYTES);
-        leaf3.update(&chunks.7[..cmp::min(buflen, BLOCKBYTES)]);
+        leaf7.update(&chunks.7[..cmp::min(buflen, BLOCKBYTES)]);
+        buflen = buflen.saturating_sub(BLOCKBYTES);
+        leaf0.update(&chunks.8[..cmp::min(buflen, BLOCKBYTES)]);
+        buflen = buflen.saturating_sub(BLOCKBYTES);
+        leaf1.update(&chunks.9[..cmp::min(buflen, BLOCKBYTES)]);
+        buflen = buflen.saturating_sub(BLOCKBYTES);
+        leaf2.update(&chunks.10[..cmp::min(buflen, BLOCKBYTES)]);
+        buflen = buflen.saturating_sub(BLOCKBYTES);
+        leaf3.update(&chunks.11[..cmp::min(buflen, BLOCKBYTES)]);
+        buflen = buflen.saturating_sub(BLOCKBYTES);
+        leaf4.update(&chunks.12[..cmp::min(buflen, BLOCKBYTES)]);
+        buflen = buflen.saturating_sub(BLOCKBYTES);
+        leaf5.update(&chunks.13[..cmp::min(buflen, BLOCKBYTES)]);
+        buflen = buflen.saturating_sub(BLOCKBYTES);
+        leaf6.update(&chunks.14[..cmp::min(buflen, BLOCKBYTES)]);
+        buflen = buflen.saturating_sub(BLOCKBYTES);
+        leaf7.update(&chunks.15[..cmp::min(buflen, BLOCKBYTES)]);
         let mut root = self.root.clone();
         root.update(leaf0.finalize().as_bytes());
         root.update(leaf1.finalize().as_bytes());
         root.update(leaf2.finalize().as_bytes());
         root.update(leaf3.finalize().as_bytes());
+        root.update(leaf4.finalize().as_bytes());
+        root.update(leaf5.finalize().as_bytes());
+        root.update(leaf6.finalize().as_bytes());
+        root.update(leaf7.finalize().as_bytes());
         root.finalize()
     }
 
     /// Return the total number of bytes input so far.
-    pub fn count(&self) -> u128 {
+    pub fn count(&self) -> u64 {
         self.leaf0.count()
             + self.leaf1.count()
             + self.leaf2.count()
             + self.leaf3.count()
-            + self.buflen as u128
+            + self.leaf4.count()
+            + self.leaf5.count()
+            + self.leaf6.count()
+            + self.leaf7.count()
+            + self.buflen as u64
     }
 }
 
@@ -420,12 +436,16 @@ impl Default for State {
 }
 
 pub(crate) fn force_portable(state: &mut State) {
-    state.compress4_fn = crate::portable::compress4;
+    state.compress8_fn = crate::portable::compress8;
     state.root.compress_fn = crate::portable::compress;
     state.leaf0.compress_fn = crate::portable::compress;
     state.leaf1.compress_fn = crate::portable::compress;
     state.leaf2.compress_fn = crate::portable::compress;
     state.leaf3.compress_fn = crate::portable::compress;
+    state.leaf4.compress_fn = crate::portable::compress;
+    state.leaf5.compress_fn = crate::portable::compress;
+    state.leaf6.compress_fn = crate::portable::compress;
+    state.leaf7.compress_fn = crate::portable::compress;
 }
 
 #[cfg(test)]
@@ -451,39 +471,63 @@ pub(crate) mod test {
     // This is a simple reference implementation without the complicated buffering or parameter
     // support of the real implementation. We need this because the official test vectors don't
     // include any inputs large enough to exercise all the branches in the buffering logic.
-    fn blake2bp_reference(input: &[u8]) -> Hash {
+    fn blake2sp_reference(input: &[u8]) -> Hash {
         let mut leaves = [
-            Blake2bParams::new()
-                .fanout(4)
+            Blake2sParams::new()
+                .fanout(8)
                 .max_depth(2)
                 .node_offset(0)
                 .inner_hash_length(OUTBYTES)
                 .to_state(),
-            Blake2bParams::new()
-                .fanout(4)
+            Blake2sParams::new()
+                .fanout(8)
                 .max_depth(2)
                 .node_offset(1)
                 .inner_hash_length(OUTBYTES)
                 .to_state(),
-            Blake2bParams::new()
-                .fanout(4)
+            Blake2sParams::new()
+                .fanout(8)
                 .max_depth(2)
                 .node_offset(2)
                 .inner_hash_length(OUTBYTES)
                 .to_state(),
-            Blake2bParams::new()
-                .fanout(4)
+            Blake2sParams::new()
+                .fanout(8)
                 .max_depth(2)
                 .node_offset(3)
+                .inner_hash_length(OUTBYTES)
+                .to_state(),
+            Blake2sParams::new()
+                .fanout(8)
+                .max_depth(2)
+                .node_offset(4)
+                .inner_hash_length(OUTBYTES)
+                .to_state(),
+            Blake2sParams::new()
+                .fanout(8)
+                .max_depth(2)
+                .node_offset(5)
+                .inner_hash_length(OUTBYTES)
+                .to_state(),
+            Blake2sParams::new()
+                .fanout(8)
+                .max_depth(2)
+                .node_offset(6)
+                .inner_hash_length(OUTBYTES)
+                .to_state(),
+            Blake2sParams::new()
+                .fanout(8)
+                .max_depth(2)
+                .node_offset(7)
                 .inner_hash_length(OUTBYTES)
                 .last_node(true)
                 .to_state(),
         ];
         for (i, chunk) in input.chunks(BLOCKBYTES).enumerate() {
-            leaves[i % 4].update(chunk);
+            leaves[i % 8].update(chunk);
         }
-        let mut root = Blake2bParams::new()
-            .fanout(4)
+        let mut root = Blake2sParams::new()
+            .fanout(8)
             .max_depth(2)
             .node_depth(1)
             .inner_hash_length(OUTBYTES)
@@ -511,8 +555,8 @@ pub(crate) mod test {
         for num_chunks in 1..=20 {
             // First hash the input all at once, as a sanity check.
             let input = &buf[..num_chunks * BLOCKBYTES];
-            let expected = blake2bp_reference(&input);
-            let found = blake2bp(&input);
+            let expected = blake2sp_reference(&input);
+            let found = blake2sp(&input);
             assert_eq!(expected, found);
 
             // Then, do it again, but buffer 1 byte of input first. That causes the buffering
@@ -521,7 +565,7 @@ pub(crate) mod test {
             state.update(&input[..1]);
             assert_eq!(1, state.count());
             state.update(&input[1..]);
-            assert_eq!(input.len() as u128, state.count());
+            assert_eq!(input.len() as u64, state.count());
             let found = state.finalize();
             assert_eq!(expected, found);
         }

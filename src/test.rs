@@ -222,18 +222,18 @@ fn test_all_parameters() {
     assert_eq!("0d9841e93b8f1d4c0666da56e2bae569c13b", &hash.to_hex());
 }
 
-// #[test]
-// fn test_all_parameters_blake2bp() {
-//     let hash = blake2bp::Params::new()
-//         .hash_length(18)
-//         // Make sure a shorter key properly overwrites a longer one.
-//         .key(b"not the real key")
-//         .key(b"bar")
-//         .to_state()
-//         .update(b"foo")
-//         .finalize();
-//     assert_eq!("8c54e888a8a01c63da6585c058fe54ea81df", &hash.to_hex());
-// }
+#[test]
+fn test_all_parameters_blake2sp() {
+    let hash = blake2sp::Params::new()
+        .hash_length(18)
+        // Make sure a shorter key properly overwrites a longer one.
+        .key(b"not the real key")
+        .key(b"bar")
+        .to_state()
+        .update(b"foo")
+        .finalize();
+    assert_eq!("947d4c671e2794f5e1a57daeca97bb46ed66", &hash.to_hex());
+}
 
 #[test]
 #[should_panic]
@@ -277,23 +277,23 @@ fn test_long_inner_hash_length_panics() {
     Params::new().inner_hash_length(OUTBYTES + 1);
 }
 
-// #[test]
-// #[should_panic]
-// fn test_blake2bp_short_hash_length_panics() {
-//     blake2bp::Params::new().hash_length(0);
-// }
+#[test]
+#[should_panic]
+fn test_blake2sp_short_hash_length_panics() {
+    blake2sp::Params::new().hash_length(0);
+}
 
-// #[test]
-// #[should_panic]
-// fn test_blake2bp_long_hash_length_panics() {
-//     blake2bp::Params::new().hash_length(OUTBYTES + 1);
-// }
+#[test]
+#[should_panic]
+fn test_blake2sp_long_hash_length_panics() {
+    blake2sp::Params::new().hash_length(OUTBYTES + 1);
+}
 
-// #[test]
-// #[should_panic]
-// fn test_blake2bp_long_key_panics() {
-//     blake2bp::Params::new().key(&[0; KEYBYTES + 1]);
-// }
+#[test]
+#[should_panic]
+fn test_blake2sp_long_key_panics() {
+    blake2sp::Params::new().key(&[0; KEYBYTES + 1]);
+}
 
 pub(crate) fn paint_input(buf: &mut [u8]) {
     let mut offset = 0;

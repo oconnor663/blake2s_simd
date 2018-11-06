@@ -19,7 +19,7 @@ use core::fmt;
 // mod avx2;
 mod portable;
 
-// pub mod blake2sp;
+pub mod blake2sp;
 
 #[cfg(test)]
 mod test;
@@ -746,7 +746,7 @@ pub mod benchmarks {
     pub fn force_portable(state: &mut crate::State) {
         state.compress_fn = compress_portable;
     }
-    // pub fn force_portable_blake2bp(state: &mut crate::blake2bp::State) {
-    //     crate::blake2bp::force_portable(state);
-    // }
+    pub fn force_portable_blake2sp(state: &mut crate::blake2sp::State) {
+        crate::blake2sp::force_portable(state);
+    }
 }
