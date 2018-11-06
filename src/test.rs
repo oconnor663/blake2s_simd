@@ -130,7 +130,6 @@ fn test_vectors() {
     ];
     // Test each input all at once.
     for &(input, output) in io {
-        println!("input {:?}", input);
         let hash = blake2s(input);
         assert_eq!(&hash.to_hex(), output, "hash mismatch");
     }
