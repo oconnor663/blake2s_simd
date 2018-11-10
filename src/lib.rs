@@ -130,6 +130,28 @@ impl Params {
         Self::default()
     }
 
+    fn make_words(&self) -> StateWords {
+        let (salt_left, salt_right) = array_refs!(&self.salt, 4, 4);
+        let (personal_left, personal_right) = array_refs!(&self.personal, 4, 4);
+        [
+            IV[0]
+                ^ self.hash_length as u32
+                ^ (self.key_length as u32) << 8
+                ^ (self.fanout as u32) << 16
+                ^ (self.max_depth as u32) << 24,
+            IV[1] ^ (self.max_leaf_length as u32),
+            IV[2] ^ (self.node_offset as u32),
+            IV[3]
+                ^ (self.node_offset >> 32) as u32
+                ^ (self.node_depth as u32) << 16
+                ^ (self.inner_hash_length as u32) << 24,
+            IV[4] ^ LittleEndian::read_u32(salt_left),
+            IV[5] ^ LittleEndian::read_u32(salt_right),
+            IV[6] ^ LittleEndian::read_u32(personal_left),
+            IV[7] ^ LittleEndian::read_u32(personal_right),
+        ]
+    }
+
     pub fn to_state(&self) -> State {
         State::with_params(self)
     }
@@ -246,26 +268,8 @@ impl State {
     }
 
     fn with_params(params: &Params) -> Self {
-        let (salt_left, salt_right) = array_refs!(&params.salt, 4, 4);
-        let (personal_left, personal_right) = array_refs!(&params.personal, 4, 4);
         let mut state = Self {
-            h: [
-                IV[0]
-                    ^ params.hash_length as u32
-                    ^ (params.key_length as u32) << 8
-                    ^ (params.fanout as u32) << 16
-                    ^ (params.max_depth as u32) << 24,
-                IV[1] ^ (params.max_leaf_length as u32),
-                IV[2] ^ (params.node_offset as u32),
-                IV[3]
-                    ^ (params.node_offset >> 32) as u32
-                    ^ (params.node_depth as u32) << 16
-                    ^ (params.inner_hash_length as u32) << 24,
-                IV[4] ^ LittleEndian::read_u32(salt_left),
-                IV[5] ^ LittleEndian::read_u32(salt_right),
-                IV[6] ^ LittleEndian::read_u32(personal_left),
-                IV[7] ^ LittleEndian::read_u32(personal_right),
-            ],
+            h: params.make_words(),
             compress_fn: default_compress_impl().0,
             buf: [0; BLOCKBYTES],
             buflen: 0,
