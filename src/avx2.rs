@@ -77,7 +77,7 @@ unsafe fn load_256_from_8xu32(
 }
 
 #[inline(always)]
-unsafe fn load_msg8_words(
+unsafe fn load_msg_vec(
     msg0: &Block,
     msg1: &Block,
     msg2: &Block,
@@ -98,6 +98,37 @@ unsafe fn load_msg8_words(
         LittleEndian::read_u32(&msg6[4 * i..]),
         LittleEndian::read_u32(&msg7[4 * i..]),
     )
+}
+
+#[inline(always)]
+unsafe fn load_msg_vecs(
+    msg0: &Block,
+    msg1: &Block,
+    msg2: &Block,
+    msg3: &Block,
+    msg4: &Block,
+    msg5: &Block,
+    msg6: &Block,
+    msg7: &Block,
+) -> [__m256i; 16] {
+    [
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 0),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 1),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 2),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 3),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 4),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 5),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 6),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 7),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 8),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 9),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 10),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 11),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 12),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 13),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 14),
+        load_msg_vec(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 15),
+    ]
 }
 
 #[inline(always)]
@@ -334,24 +365,7 @@ pub unsafe fn compress8(
         lastnode6 as u32,
         lastnode7 as u32,
     );
-    let m = [
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 0),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 1),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 2),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 3),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 4),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 5),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 6),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 7),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 8),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 9),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 10),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 11),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 12),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 13),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 14),
-        load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 15),
-    ];
+    let m = load_msg_vecs(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7);
 
     compress8_inner(&mut h_vecs, &m, count_low, count_high, lastblock, lastnode);
 
