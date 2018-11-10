@@ -219,9 +219,7 @@ unsafe fn blake2s_round_8x(v: &mut [__m256i; 16], m: &[__m256i; 16], r: usize) {
 
 #[inline(always)]
 unsafe fn export_state_words_8x(
-    orig_vec: __m256i,
-    low_state: __m256i,
-    high_state: __m256i,
+    vec: __m256i,
     h0: &mut StateWords,
     h1: &mut StateWords,
     h2: &mut StateWords,
@@ -232,7 +230,7 @@ unsafe fn export_state_words_8x(
     h7: &mut StateWords,
     i: usize,
 ) {
-    let parts: [u32; 8] = mem::transmute(xor(xor(orig_vec, low_state), high_state));
+    let parts: [u32; 8] = mem::transmute(vec);
     h0[i] = parts[0];
     h1[i] = parts[1];
     h2[i] = parts[2];
@@ -286,7 +284,7 @@ pub unsafe fn compress8(
     lastnode6: u32,
     lastnode7: u32,
 ) {
-    let h_vecs = [
+    let mut h_vecs = [
         load_256_from_8xu32(h0[0], h1[0], h2[0], h3[0], h4[0], h5[0], h6[0], h7[0]),
         load_256_from_8xu32(h0[1], h1[1], h2[1], h3[1], h4[1], h5[1], h6[1], h7[1]),
         load_256_from_8xu32(h0[2], h1[2], h2[2], h3[2], h4[2], h5[2], h6[2], h7[2]),
@@ -336,24 +334,6 @@ pub unsafe fn compress8(
         lastnode6 as u32,
         lastnode7 as u32,
     );
-    let mut v = [
-        h_vecs[0],
-        h_vecs[1],
-        h_vecs[2],
-        h_vecs[3],
-        h_vecs[4],
-        h_vecs[5],
-        h_vecs[6],
-        h_vecs[7],
-        load_256_from_u32(IV[0]),
-        load_256_from_u32(IV[1]),
-        load_256_from_u32(IV[2]),
-        load_256_from_u32(IV[3]),
-        xor(load_256_from_u32(IV[4]), count_low),
-        xor(load_256_from_u32(IV[5]), count_high),
-        xor(load_256_from_u32(IV[6]), lastblock),
-        xor(load_256_from_u32(IV[7]), lastnode),
-    ];
     let m = [
         load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 0),
         load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 1),
@@ -373,23 +353,63 @@ pub unsafe fn compress8(
         load_msg8_words(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, 15),
     ];
 
-    blake2s_round_8x(&mut v, &m, 0);
-    blake2s_round_8x(&mut v, &m, 1);
-    blake2s_round_8x(&mut v, &m, 2);
-    blake2s_round_8x(&mut v, &m, 3);
-    blake2s_round_8x(&mut v, &m, 4);
-    blake2s_round_8x(&mut v, &m, 5);
-    blake2s_round_8x(&mut v, &m, 6);
-    blake2s_round_8x(&mut v, &m, 7);
-    blake2s_round_8x(&mut v, &m, 8);
-    blake2s_round_8x(&mut v, &m, 9);
+    compress8_inner(&mut h_vecs, &m, count_low, count_high, lastblock, lastnode);
 
-    export_state_words_8x(h_vecs[0], v[0], v[8], h0, h1, h2, h3, h4, h5, h6, h7, 0);
-    export_state_words_8x(h_vecs[1], v[1], v[9], h0, h1, h2, h3, h4, h5, h6, h7, 1);
-    export_state_words_8x(h_vecs[2], v[2], v[10], h0, h1, h2, h3, h4, h5, h6, h7, 2);
-    export_state_words_8x(h_vecs[3], v[3], v[11], h0, h1, h2, h3, h4, h5, h6, h7, 3);
-    export_state_words_8x(h_vecs[4], v[4], v[12], h0, h1, h2, h3, h4, h5, h6, h7, 4);
-    export_state_words_8x(h_vecs[5], v[5], v[13], h0, h1, h2, h3, h4, h5, h6, h7, 5);
-    export_state_words_8x(h_vecs[6], v[6], v[14], h0, h1, h2, h3, h4, h5, h6, h7, 6);
-    export_state_words_8x(h_vecs[7], v[7], v[15], h0, h1, h2, h3, h4, h5, h6, h7, 7);
+    export_state_words_8x(h_vecs[0], h0, h1, h2, h3, h4, h5, h6, h7, 0);
+    export_state_words_8x(h_vecs[1], h0, h1, h2, h3, h4, h5, h6, h7, 1);
+    export_state_words_8x(h_vecs[2], h0, h1, h2, h3, h4, h5, h6, h7, 2);
+    export_state_words_8x(h_vecs[3], h0, h1, h2, h3, h4, h5, h6, h7, 3);
+    export_state_words_8x(h_vecs[4], h0, h1, h2, h3, h4, h5, h6, h7, 4);
+    export_state_words_8x(h_vecs[5], h0, h1, h2, h3, h4, h5, h6, h7, 5);
+    export_state_words_8x(h_vecs[6], h0, h1, h2, h3, h4, h5, h6, h7, 6);
+    export_state_words_8x(h_vecs[7], h0, h1, h2, h3, h4, h5, h6, h7, 7);
+}
+
+#[target_feature(enable = "avx2")]
+pub unsafe fn compress8_inner(
+    h_vecs: &mut [__m256i; 8],
+    msg_vecs: &[__m256i; 16],
+    count_low: __m256i,
+    count_high: __m256i,
+    lastblock: __m256i,
+    lastnode: __m256i,
+) {
+    let mut v = [
+        h_vecs[0],
+        h_vecs[1],
+        h_vecs[2],
+        h_vecs[3],
+        h_vecs[4],
+        h_vecs[5],
+        h_vecs[6],
+        h_vecs[7],
+        load_256_from_u32(IV[0]),
+        load_256_from_u32(IV[1]),
+        load_256_from_u32(IV[2]),
+        load_256_from_u32(IV[3]),
+        xor(load_256_from_u32(IV[4]), count_low),
+        xor(load_256_from_u32(IV[5]), count_high),
+        xor(load_256_from_u32(IV[6]), lastblock),
+        xor(load_256_from_u32(IV[7]), lastnode),
+    ];
+
+    blake2s_round_8x(&mut v, &msg_vecs, 0);
+    blake2s_round_8x(&mut v, &msg_vecs, 1);
+    blake2s_round_8x(&mut v, &msg_vecs, 2);
+    blake2s_round_8x(&mut v, &msg_vecs, 3);
+    blake2s_round_8x(&mut v, &msg_vecs, 4);
+    blake2s_round_8x(&mut v, &msg_vecs, 5);
+    blake2s_round_8x(&mut v, &msg_vecs, 6);
+    blake2s_round_8x(&mut v, &msg_vecs, 7);
+    blake2s_round_8x(&mut v, &msg_vecs, 8);
+    blake2s_round_8x(&mut v, &msg_vecs, 9);
+
+    h_vecs[0] = xor(xor(h_vecs[0], v[0]), v[8]);
+    h_vecs[1] = xor(xor(h_vecs[1], v[1]), v[9]);
+    h_vecs[2] = xor(xor(h_vecs[2], v[2]), v[10]);
+    h_vecs[3] = xor(xor(h_vecs[3], v[3]), v[11]);
+    h_vecs[4] = xor(xor(h_vecs[4], v[4]), v[12]);
+    h_vecs[5] = xor(xor(h_vecs[5], v[5]), v[13]);
+    h_vecs[6] = xor(xor(h_vecs[6], v[6]), v[14]);
+    h_vecs[7] = xor(xor(h_vecs[7], v[7]), v[15]);
 }
