@@ -574,3 +574,38 @@ fn test_update8() {
         );
     }
 }
+
+#[test]
+fn test_blake2s_8way() {
+    let input0 = &[0; 100_000];
+    let input1 = &[1; 100_000];
+    let input2 = &[2; 100_000];
+    let input3 = &[3; 100_000];
+    let input4 = &[4; 100_000];
+    let input5 = &[5; 100_000];
+    let input6 = &[6; 100_000];
+    let input7 = &[7; 100_000];
+    let mut params = Params::new();
+    params.hash_length(29).last_node(true);
+    let expected0 = params.to_state().update(input0).finalize();
+    let expected1 = params.to_state().update(input1).finalize();
+    let expected2 = params.to_state().update(input2).finalize();
+    let expected3 = params.to_state().update(input3).finalize();
+    let expected4 = params.to_state().update(input4).finalize();
+    let expected5 = params.to_state().update(input5).finalize();
+    let expected6 = params.to_state().update(input6).finalize();
+    let expected7 = params.to_state().update(input7).finalize();
+    let hashes = unsafe {
+        blake2s_8way(
+            &params, input0, input1, input2, input3, input4, input5, input6, input7,
+        )
+    };
+    assert_eq!(expected0, hashes[0]);
+    assert_eq!(expected1, hashes[1]);
+    assert_eq!(expected2, hashes[2]);
+    assert_eq!(expected3, hashes[3]);
+    assert_eq!(expected4, hashes[4]);
+    assert_eq!(expected5, hashes[5]);
+    assert_eq!(expected6, hashes[6]);
+    assert_eq!(expected7, hashes[7]);
+}

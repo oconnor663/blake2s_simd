@@ -138,3 +138,9 @@ fn bench_blake2s_update8_one_mb(b: &mut Bencher) {
     b.bytes = 8 * MB.len() as u64;
     b.iter(|| do_update8(MB));
 }
+
+#[bench]
+fn bench_blake2s_8way_one_mb(b: &mut Bencher) {
+    b.bytes = 8 * MB.len() as u64;
+    b.iter(|| unsafe { blake2s_8way(&Params::new(), MB, MB, MB, MB, MB, MB, MB, MB) });
+}

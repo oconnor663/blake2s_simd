@@ -7,7 +7,10 @@ use byteorder::{ByteOrder, LittleEndian};
 use core::mem;
 
 use crate::Block;
+use crate::Hash;
+use crate::Params;
 use crate::StateWords;
+use crate::BLOCKBYTES;
 use crate::IV;
 use crate::SIGMA;
 
@@ -426,4 +429,139 @@ pub unsafe fn compress8_inner(
     h_vecs[5] = xor(xor(h_vecs[5], v[5]), v[13]);
     h_vecs[6] = xor(xor(h_vecs[6], v[6]), v[14]);
     h_vecs[7] = xor(xor(h_vecs[7], v[7]), v[15]);
+}
+
+#[inline(always)]
+fn export_hash(h_vecs: &[__m256i; 8], i: usize, hash_length: u8) -> Hash {
+    let mut hash_words = [0; 8];
+    for word in 0..8 {
+        let h_vec = &h_vecs[word];
+        unsafe {
+            hash_words[word] = *(h_vec as *const __m256i as *const u32).add(i);
+        }
+    }
+    Hash {
+        len: hash_length,
+        bytes: unsafe { mem::transmute(hash_words) },
+    }
+}
+
+#[inline(always)]
+fn export_hashes(h_vecs: &[__m256i; 8], hash_length: u8) -> [Hash; 8] {
+    [
+        export_hash(h_vecs, 0, hash_length),
+        export_hash(h_vecs, 1, hash_length),
+        export_hash(h_vecs, 2, hash_length),
+        export_hash(h_vecs, 3, hash_length),
+        export_hash(h_vecs, 4, hash_length),
+        export_hash(h_vecs, 5, hash_length),
+        export_hash(h_vecs, 6, hash_length),
+        export_hash(h_vecs, 7, hash_length),
+    ]
+}
+
+pub unsafe fn blake2s_8way(
+    // TODO: Separate params for each input.
+    params: &Params,
+    mut input0: &[u8],
+    mut input1: &[u8],
+    mut input2: &[u8],
+    mut input3: &[u8],
+    mut input4: &[u8],
+    mut input5: &[u8],
+    mut input6: &[u8],
+    mut input7: &[u8],
+) -> [Hash; 8] {
+    // TODO: Handle uneven lengths.
+    assert_eq!(input0.len(), input1.len());
+    assert_eq!(input0.len(), input2.len());
+    assert_eq!(input0.len(), input3.len());
+    assert_eq!(input0.len(), input4.len());
+    assert_eq!(input0.len(), input5.len());
+    assert_eq!(input0.len(), input6.len());
+    assert_eq!(input0.len(), input7.len());
+
+    let param_words = params.make_words();
+    let mut h_vecs = [
+        load_256_from_u32(param_words[0]),
+        load_256_from_u32(param_words[1]),
+        load_256_from_u32(param_words[2]),
+        load_256_from_u32(param_words[3]),
+        load_256_from_u32(param_words[4]),
+        load_256_from_u32(param_words[5]),
+        load_256_from_u32(param_words[6]),
+        load_256_from_u32(param_words[7]),
+    ];
+    let mut count_low = load_256_from_u32(0);
+    let count_high = load_256_from_u32(0);
+
+    while input0.len() >= BLOCKBYTES {
+        let msg0 = array_ref!(input0, 0, BLOCKBYTES);
+        let msg1 = array_ref!(input1, 0, BLOCKBYTES);
+        let msg2 = array_ref!(input2, 0, BLOCKBYTES);
+        let msg3 = array_ref!(input3, 0, BLOCKBYTES);
+        let msg4 = array_ref!(input4, 0, BLOCKBYTES);
+        let msg5 = array_ref!(input5, 0, BLOCKBYTES);
+        let msg6 = array_ref!(input6, 0, BLOCKBYTES);
+        let msg7 = array_ref!(input7, 0, BLOCKBYTES);
+        let m_vecs = load_msg_vecs(&msg0, &msg1, &msg2, &msg3, &msg4, &msg5, &msg6, &msg7);
+        let lastblock = load_256_from_u32(if input0.is_empty() { !0 } else { 0 });
+        let lastnode = load_256_from_u32(if input0.is_empty() && params.last_node {
+            !0
+        } else {
+            0
+        });
+        count_low = add(count_low, load_256_from_u32(BLOCKBYTES as u32));
+        compress8_inner(
+            &mut h_vecs,
+            &m_vecs,
+            count_low,
+            count_high,
+            lastblock,
+            lastnode,
+        );
+        if input0.len() == BLOCKBYTES {
+            return export_hashes(&h_vecs, params.hash_length);
+        }
+        input0 = &input0[BLOCKBYTES..];
+        input1 = &input1[BLOCKBYTES..];
+        input2 = &input2[BLOCKBYTES..];
+        input3 = &input3[BLOCKBYTES..];
+        input4 = &input4[BLOCKBYTES..];
+        input5 = &input5[BLOCKBYTES..];
+        input6 = &input6[BLOCKBYTES..];
+        input7 = &input7[BLOCKBYTES..];
+    }
+
+    // Compress the final partial block. Even multiples of the block length are handled entirely in
+    // the loop above.
+    let mut msg0 = [0; BLOCKBYTES];
+    let mut msg1 = [0; BLOCKBYTES];
+    let mut msg2 = [0; BLOCKBYTES];
+    let mut msg3 = [0; BLOCKBYTES];
+    let mut msg4 = [0; BLOCKBYTES];
+    let mut msg5 = [0; BLOCKBYTES];
+    let mut msg6 = [0; BLOCKBYTES];
+    let mut msg7 = [0; BLOCKBYTES];
+    msg0[..input0.len()].copy_from_slice(input0);
+    msg1[..input1.len()].copy_from_slice(input1);
+    msg2[..input2.len()].copy_from_slice(input2);
+    msg3[..input3.len()].copy_from_slice(input3);
+    msg4[..input4.len()].copy_from_slice(input4);
+    msg5[..input5.len()].copy_from_slice(input5);
+    msg6[..input6.len()].copy_from_slice(input6);
+    msg7[..input7.len()].copy_from_slice(input7);
+    let m_vecs = load_msg_vecs(&msg0, &msg1, &msg2, &msg3, &msg4, &msg5, &msg6, &msg7);
+    let lastblock = load_256_from_u32(!0);
+    let lastnode = load_256_from_u32(if params.last_node { !0 } else { 0 });
+    count_low = add(count_low, load_256_from_u32(input0.len() as u32));
+    compress8_inner(
+        &mut h_vecs,
+        &m_vecs,
+        count_low,
+        count_high,
+        lastblock,
+        lastnode,
+    );
+    return export_hashes(&h_vecs, params.hash_length);
 }

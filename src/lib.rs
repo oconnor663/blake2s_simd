@@ -736,6 +736,8 @@ pub fn finalize8(
     ]
 }
 
+pub use avx2::blake2s_8way;
+
 // This module is pub for internal benchmarks only. Please don't use it.
 #[doc(hidden)]
 pub mod benchmarks {
