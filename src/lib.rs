@@ -748,6 +748,10 @@ pub mod benchmarks {
     pub use crate::avx2::compress8 as compress8_avx2;
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     pub use crate::avx2::compress8_inner as compress8_inner_avx2;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    pub use crate::avx2::load_msg_vecs_interleave as load_msg_vecs_interleave_avx2;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    pub use crate::avx2::load_msg_vecs_naive as load_msg_vecs_naive_avx2;
 
     // Safety: The portable implementation should be safe to call on any platform.
     pub fn force_portable(state: &mut crate::State) {

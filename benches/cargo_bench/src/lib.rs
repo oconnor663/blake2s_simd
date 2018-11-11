@@ -12,6 +12,32 @@ const MB: &[u8; 1_000_000] = &[0; 1_000_000];
 
 #[bench]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn bench_load_msg_vecs_naive(b: &mut Bencher) {
+    if !is_x86_feature_detected!("avx2") {
+        return;
+    }
+    b.bytes = BLOCK.len() as u64 * 8;
+    b.iter(|| unsafe {
+        benchmarks::load_msg_vecs_naive_avx2(BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK)
+    });
+}
+
+#[bench]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn bench_load_msg_vecs_interleave(b: &mut Bencher) {
+    if !is_x86_feature_detected!("avx2") {
+        return;
+    }
+    b.bytes = BLOCK.len() as u64 * 8;
+    b.iter(|| unsafe {
+        benchmarks::load_msg_vecs_interleave_avx2(
+            BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK,
+        )
+    });
+}
+
+#[bench]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 fn bench_blake2s_avx2_compress8(b: &mut Bencher) {
     if !is_x86_feature_detected!("avx2") {
         return;
@@ -47,7 +73,6 @@ fn bench_blake2s_avx2_compress8_inner(b: &mut Bencher) {
     b.bytes = BLOCK.len() as u64 * 8;
     unsafe {
         let mut h_vecs: [__m256i; 8] = mem::zeroed();
-        let msg_vecs: [__m256i; 16] = mem::zeroed();
         b.iter(|| {
             benchmarks::compress8_inner_avx2(
                 &mut h_vecs,

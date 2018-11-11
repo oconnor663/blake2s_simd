@@ -104,7 +104,7 @@ unsafe fn load_msg_vec(
 }
 
 #[inline(always)]
-unsafe fn load_msg_vecs(
+pub unsafe fn load_msg_vecs_naive(
     msg0: &Block,
     msg1: &Block,
     msg2: &Block,
@@ -527,7 +527,7 @@ fn test_interleave_vecs() {
 }
 
 #[inline(always)]
-unsafe fn interleave_msg_vecs(
+pub unsafe fn load_msg_vecs_interleave(
     msg_a: &[u8; BLOCKBYTES],
     msg_b: &[u8; BLOCKBYTES],
     msg_c: &[u8; BLOCKBYTES],
@@ -608,7 +608,7 @@ pub unsafe fn compress8_inner(
         xor(load_256_from_u32(IV[7]), lastnode),
     ];
 
-    let msg_vecs = interleave_msg_vecs(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7);
+    let msg_vecs = load_msg_vecs_interleave(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7);
 
     blake2s_round_8x(&mut v, &msg_vecs, 0);
     blake2s_round_8x(&mut v, &msg_vecs, 1);
