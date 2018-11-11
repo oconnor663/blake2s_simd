@@ -4,6 +4,7 @@ extern crate blake2s_simd;
 extern crate test;
 
 use blake2s_simd::*;
+use std::mem;
 use test::Bencher;
 
 const BLOCK: &[u8; BLOCKBYTES] = &[0; BLOCKBYTES];
@@ -31,6 +32,33 @@ fn bench_blake2s_avx2_compress8(b: &mut Bencher) {
             0, 0, 0, 0, 0, 0, 0, 0, 0,
         );
     });
+}
+
+#[bench]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn bench_blake2s_avx2_compress8_inner(b: &mut Bencher) {
+    #[cfg(target_arch = "x86")]
+    use std::arch::x86::*;
+    #[cfg(target_arch = "x86_64")]
+    use std::arch::x86_64::*;
+    if !is_x86_feature_detected!("avx2") {
+        return;
+    }
+    b.bytes = BLOCK.len() as u64 * 8;
+    unsafe {
+        let mut h_vecs: [__m256i; 8] = mem::zeroed();
+        let msg_vecs: [__m256i; 16] = mem::zeroed();
+        b.iter(|| {
+            benchmarks::compress8_inner_avx2(
+                &mut h_vecs,
+                &msg_vecs,
+                mem::zeroed(),
+                mem::zeroed(),
+                mem::zeroed(),
+                mem::zeroed(),
+            )
+        });
+    }
 }
 
 #[bench]
