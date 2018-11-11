@@ -51,7 +51,14 @@ fn bench_blake2s_avx2_compress8_inner(b: &mut Bencher) {
         b.iter(|| {
             benchmarks::compress8_inner_avx2(
                 &mut h_vecs,
-                &msg_vecs,
+                BLOCK,
+                BLOCK,
+                BLOCK,
+                BLOCK,
+                BLOCK,
+                BLOCK,
+                BLOCK,
+                BLOCK,
                 mem::zeroed(),
                 mem::zeroed(),
                 mem::zeroed(),

@@ -368,9 +368,22 @@ pub unsafe fn compress8(
         lastnode6 as u32,
         lastnode7 as u32,
     );
-    let m = load_msg_vecs(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7);
 
-    compress8_inner(&mut h_vecs, &m, count_low, count_high, lastblock, lastnode);
+    compress8_inner(
+        &mut h_vecs,
+        msg0,
+        msg1,
+        msg2,
+        msg3,
+        msg4,
+        msg5,
+        msg6,
+        msg7,
+        count_low,
+        count_high,
+        lastblock,
+        lastnode,
+    );
 
     export_state_words_8x(h_vecs[0], h0, h1, h2, h3, h4, h5, h6, h7, 0);
     export_state_words_8x(h_vecs[1], h0, h1, h2, h3, h4, h5, h6, h7, 1);
@@ -382,10 +395,195 @@ pub unsafe fn compress8(
     export_state_words_8x(h_vecs[7], h0, h1, h2, h3, h4, h5, h6, h7, 7);
 }
 
+#[inline(always)]
+unsafe fn interleave128(a: __m256i, b: __m256i) -> (__m256i, __m256i) {
+    (
+        _mm256_permute2x128_si256(a, b, 0x20),
+        _mm256_permute2x128_si256(a, b, 0x31),
+    )
+}
+
+#[cfg(test)]
+fn cast_out(x: __m256i) -> [u32; 8] {
+    unsafe { mem::transmute(x) }
+}
+
+#[cfg(test)]
+#[test]
+fn test_interleave128() {
+    unsafe {
+        let a = load_256_from_8xu32(10, 11, 12, 13, 14, 15, 16, 17);
+        let b = load_256_from_8xu32(20, 21, 22, 23, 24, 25, 26, 27);
+
+        let expected_a = load_256_from_8xu32(10, 11, 12, 13, 20, 21, 22, 23);
+        let expected_b = load_256_from_8xu32(14, 15, 16, 17, 24, 25, 26, 27);
+
+        let (out_a, out_b) = interleave128(a, b);
+
+        assert_eq!(cast_out(expected_a), cast_out(out_a));
+        assert_eq!(cast_out(expected_b), cast_out(out_b));
+    }
+}
+
+#[inline(always)]
+unsafe fn load_2x256(msg: &[u8; BLOCKBYTES]) -> (__m256i, __m256i) {
+    (
+        _mm256_loadu_si256(msg.as_ptr() as *const __m256i),
+        _mm256_loadu_si256((msg.as_ptr() as *const __m256i).add(1)),
+    )
+}
+
+#[cfg(test)]
+#[test]
+fn test_load_2x256() {
+    unsafe {
+        let input: [u64; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
+        let input_bytes: [u8; BLOCKBYTES] = mem::transmute(input);
+        let (out_a, out_b) = load_2x256(&input_bytes);
+
+        let expected_a = load_256_from_8xu32(0, 0, 1, 0, 2, 0, 3, 0);
+        let expected_b = load_256_from_8xu32(4, 0, 5, 0, 6, 0, 7, 0);
+
+        assert_eq!(cast_out(expected_a), cast_out(out_a));
+        assert_eq!(cast_out(expected_b), cast_out(out_b));
+    }
+}
+
+unsafe fn interleave_vecs(
+    vec_a: __m256i,
+    vec_b: __m256i,
+    vec_c: __m256i,
+    vec_d: __m256i,
+    vec_e: __m256i,
+    vec_f: __m256i,
+    vec_g: __m256i,
+    vec_h: __m256i,
+) -> [__m256i; 8] {
+    // Interleave 32-bit lanes. The low unpack is lanes 00/11/44/55, and the high is 22/33/66/77.
+    let ab_0145 = _mm256_unpacklo_epi32(vec_a, vec_b);
+    let ab_2367 = _mm256_unpackhi_epi32(vec_a, vec_b);
+    let cd_0145 = _mm256_unpacklo_epi32(vec_c, vec_d);
+    let cd_2367 = _mm256_unpackhi_epi32(vec_c, vec_d);
+    let ef_0145 = _mm256_unpacklo_epi32(vec_e, vec_f);
+    let ef_2367 = _mm256_unpackhi_epi32(vec_e, vec_f);
+    let gh_0145 = _mm256_unpacklo_epi32(vec_g, vec_h);
+    let gh_2367 = _mm256_unpackhi_epi32(vec_g, vec_h);
+
+    // Interleave 64-bit lates. The low unpack is lanes 00/22 and the high is 11/33.
+    let abcd_04 = _mm256_unpacklo_epi64(ab_0145, cd_0145);
+    let abcd_15 = _mm256_unpackhi_epi64(ab_0145, cd_0145);
+    let abcd_26 = _mm256_unpacklo_epi64(ab_2367, cd_2367);
+    let abcd_37 = _mm256_unpackhi_epi64(ab_2367, cd_2367);
+    let efgh_04 = _mm256_unpacklo_epi64(ef_0145, gh_0145);
+    let efgh_15 = _mm256_unpackhi_epi64(ef_0145, gh_0145);
+    let efgh_26 = _mm256_unpacklo_epi64(ef_2367, gh_2367);
+    let efgh_37 = _mm256_unpackhi_epi64(ef_2367, gh_2367);
+
+    // Interleave 128-bit lanes.
+    let (abcdefg_0, abcdefg_4) = interleave128(abcd_04, efgh_04);
+    let (abcdefg_1, abcdefg_5) = interleave128(abcd_15, efgh_15);
+    let (abcdefg_2, abcdefg_6) = interleave128(abcd_26, efgh_26);
+    let (abcdefg_3, abcdefg_7) = interleave128(abcd_37, efgh_37);
+
+    [
+        abcdefg_0, abcdefg_1, abcdefg_2, abcdefg_3, abcdefg_4, abcdefg_5, abcdefg_6, abcdefg_7,
+    ]
+}
+
+#[cfg(test)]
+#[test]
+fn test_interleave_vecs() {
+    unsafe {
+        let vec_a = load_256_from_8xu32(0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07);
+        let vec_b = load_256_from_8xu32(0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17);
+        let vec_c = load_256_from_8xu32(0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27);
+        let vec_d = load_256_from_8xu32(0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37);
+        let vec_e = load_256_from_8xu32(0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47);
+        let vec_f = load_256_from_8xu32(0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57);
+        let vec_g = load_256_from_8xu32(0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67);
+        let vec_h = load_256_from_8xu32(0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77);
+
+        let expected_a = load_256_from_8xu32(0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70);
+        let expected_b = load_256_from_8xu32(0x01, 0x11, 0x21, 0x31, 0x41, 0x51, 0x61, 0x71);
+        let expected_c = load_256_from_8xu32(0x02, 0x12, 0x22, 0x32, 0x42, 0x52, 0x62, 0x72);
+        let expected_d = load_256_from_8xu32(0x03, 0x13, 0x23, 0x33, 0x43, 0x53, 0x63, 0x73);
+        let expected_e = load_256_from_8xu32(0x04, 0x14, 0x24, 0x34, 0x44, 0x54, 0x64, 0x74);
+        let expected_f = load_256_from_8xu32(0x05, 0x15, 0x25, 0x35, 0x45, 0x55, 0x65, 0x75);
+        let expected_g = load_256_from_8xu32(0x06, 0x16, 0x26, 0x36, 0x46, 0x56, 0x66, 0x76);
+        let expected_h = load_256_from_8xu32(0x07, 0x17, 0x27, 0x37, 0x47, 0x57, 0x67, 0x77);
+
+        let [out_a, out_b, out_c, out_d, out_e, out_f, out_g, out_h] =
+            interleave_vecs(vec_a, vec_b, vec_c, vec_d, vec_e, vec_f, vec_g, vec_h);
+
+        assert_eq!(cast_out(expected_a), cast_out(out_a));
+        assert_eq!(cast_out(expected_b), cast_out(out_b));
+        assert_eq!(cast_out(expected_c), cast_out(out_c));
+        assert_eq!(cast_out(expected_d), cast_out(out_d));
+        assert_eq!(cast_out(expected_e), cast_out(out_e));
+        assert_eq!(cast_out(expected_f), cast_out(out_f));
+        assert_eq!(cast_out(expected_g), cast_out(out_g));
+        assert_eq!(cast_out(expected_h), cast_out(out_h));
+    }
+}
+
+#[inline(always)]
+unsafe fn interleave_msg_vecs(
+    msg_a: &[u8; BLOCKBYTES],
+    msg_b: &[u8; BLOCKBYTES],
+    msg_c: &[u8; BLOCKBYTES],
+    msg_d: &[u8; BLOCKBYTES],
+    msg_e: &[u8; BLOCKBYTES],
+    msg_f: &[u8; BLOCKBYTES],
+    msg_g: &[u8; BLOCKBYTES],
+    msg_h: &[u8; BLOCKBYTES],
+) -> [__m256i; 16] {
+    let (front_a, back_a) = load_2x256(msg_a);
+    let (front_b, back_b) = load_2x256(msg_b);
+    let (front_c, back_c) = load_2x256(msg_c);
+    let (front_d, back_d) = load_2x256(msg_d);
+    let (front_e, back_e) = load_2x256(msg_e);
+    let (front_f, back_f) = load_2x256(msg_f);
+    let (front_g, back_g) = load_2x256(msg_g);
+    let (front_h, back_h) = load_2x256(msg_h);
+
+    let front_interleaved = interleave_vecs(
+        front_a, front_b, front_c, front_d, front_e, front_f, front_g, front_h,
+    );
+    let back_interleaved = interleave_vecs(
+        back_a, back_b, back_c, back_d, back_e, back_f, back_g, back_h,
+    );
+
+    [
+        front_interleaved[0],
+        front_interleaved[1],
+        front_interleaved[2],
+        front_interleaved[3],
+        front_interleaved[4],
+        front_interleaved[5],
+        front_interleaved[6],
+        front_interleaved[7],
+        back_interleaved[0],
+        back_interleaved[1],
+        back_interleaved[2],
+        back_interleaved[3],
+        back_interleaved[4],
+        back_interleaved[5],
+        back_interleaved[6],
+        back_interleaved[7],
+    ]
+}
+
 #[target_feature(enable = "avx2")]
 pub unsafe fn compress8_inner(
     h_vecs: &mut [__m256i; 8],
-    msg_vecs: &[__m256i; 16],
+    msg0: &Block,
+    msg1: &Block,
+    msg2: &Block,
+    msg3: &Block,
+    msg4: &Block,
+    msg5: &Block,
+    msg6: &Block,
+    msg7: &Block,
     count_low: __m256i,
     count_high: __m256i,
     lastblock: __m256i,
@@ -409,6 +607,8 @@ pub unsafe fn compress8_inner(
         xor(load_256_from_u32(IV[6]), lastblock),
         xor(load_256_from_u32(IV[7]), lastnode),
     ];
+
+    let msg_vecs = interleave_msg_vecs(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7);
 
     blake2s_round_8x(&mut v, &msg_vecs, 0);
     blake2s_round_8x(&mut v, &msg_vecs, 1);
@@ -504,7 +704,6 @@ pub unsafe fn blake2s_8way(
         let msg5 = array_ref!(input5, 0, BLOCKBYTES);
         let msg6 = array_ref!(input6, 0, BLOCKBYTES);
         let msg7 = array_ref!(input7, 0, BLOCKBYTES);
-        let m_vecs = load_msg_vecs(&msg0, &msg1, &msg2, &msg3, &msg4, &msg5, &msg6, &msg7);
         let lastblock = load_256_from_u32(if input0.is_empty() { !0 } else { 0 });
         let lastnode = load_256_from_u32(if input0.is_empty() && params.last_node {
             !0
@@ -514,7 +713,14 @@ pub unsafe fn blake2s_8way(
         count_low = add(count_low, load_256_from_u32(BLOCKBYTES as u32));
         compress8_inner(
             &mut h_vecs,
-            &m_vecs,
+            msg0,
+            msg1,
+            msg2,
+            msg3,
+            msg4,
+            msg5,
+            msg6,
+            msg7,
             count_low,
             count_high,
             lastblock,
@@ -551,13 +757,19 @@ pub unsafe fn blake2s_8way(
     msg5[..input5.len()].copy_from_slice(input5);
     msg6[..input6.len()].copy_from_slice(input6);
     msg7[..input7.len()].copy_from_slice(input7);
-    let m_vecs = load_msg_vecs(&msg0, &msg1, &msg2, &msg3, &msg4, &msg5, &msg6, &msg7);
     let lastblock = load_256_from_u32(!0);
     let lastnode = load_256_from_u32(if params.last_node { !0 } else { 0 });
     count_low = add(count_low, load_256_from_u32(input0.len() as u32));
     compress8_inner(
         &mut h_vecs,
-        &m_vecs,
+        &msg0,
+        &msg1,
+        &msg2,
+        &msg3,
+        &msg4,
+        &msg5,
+        &msg6,
+        &msg7,
         count_low,
         count_high,
         lastblock,
