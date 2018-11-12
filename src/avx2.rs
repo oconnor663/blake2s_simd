@@ -573,6 +573,96 @@ pub unsafe fn load_msg_vecs_interleave(
     ]
 }
 
+#[inline(always)]
+pub unsafe fn load_msg_vecs_gather(
+    msg_0: &[u8; BLOCKBYTES],
+    msg_1: &[u8; BLOCKBYTES],
+    msg_2: &[u8; BLOCKBYTES],
+    msg_3: &[u8; BLOCKBYTES],
+    msg_4: &[u8; BLOCKBYTES],
+    msg_5: &[u8; BLOCKBYTES],
+    msg_6: &[u8; BLOCKBYTES],
+    msg_7: &[u8; BLOCKBYTES],
+) -> [__m256i; 16] {
+    let mut buf = [0i32; 8 * 16];
+    {
+        let refs = mut_array_refs!(&mut buf, 16, 16, 16, 16, 16, 16, 16, 16);
+        *refs.0 = mem::transmute(*msg_0);
+        *refs.1 = mem::transmute(*msg_1);
+        *refs.2 = mem::transmute(*msg_2);
+        *refs.3 = mem::transmute(*msg_3);
+        *refs.4 = mem::transmute(*msg_4);
+        *refs.5 = mem::transmute(*msg_5);
+        *refs.6 = mem::transmute(*msg_6);
+        *refs.7 = mem::transmute(*msg_7);
+    }
+
+    let indexes = load_256_from_8xu32(
+        0 * BLOCKBYTES as u32,
+        1 * BLOCKBYTES as u32,
+        2 * BLOCKBYTES as u32,
+        3 * BLOCKBYTES as u32,
+        4 * BLOCKBYTES as u32,
+        5 * BLOCKBYTES as u32,
+        6 * BLOCKBYTES as u32,
+        7 * BLOCKBYTES as u32,
+    );
+    [
+        _mm256_i32gather_epi32(buf.as_ptr().add(0), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(1), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(2), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(3), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(4), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(5), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(6), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(7), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(8), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(9), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(10), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(11), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(12), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(13), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(14), indexes, 1),
+        _mm256_i32gather_epi32(buf.as_ptr().add(15), indexes, 1),
+    ]
+}
+
+#[cfg(test)]
+#[test]
+fn test_gather() {
+    unsafe {
+        let mut input = [0u32; 8 * 16];
+        for i in 0..8 * 16 {
+            input[i] = i as u32;
+        }
+        let input_bytes: [u8; 8 * BLOCKBYTES] = mem::transmute(input);
+        let blocks = array_refs!(
+            &input_bytes,
+            BLOCKBYTES,
+            BLOCKBYTES,
+            BLOCKBYTES,
+            BLOCKBYTES,
+            BLOCKBYTES,
+            BLOCKBYTES,
+            BLOCKBYTES,
+            BLOCKBYTES
+        );
+
+        let expected_vecs = load_msg_vecs_naive(
+            blocks.0, blocks.1, blocks.2, blocks.3, blocks.4, blocks.5, blocks.6, blocks.7,
+        );
+
+        let gather_vecs = load_msg_vecs_gather(
+            blocks.0, blocks.1, blocks.2, blocks.3, blocks.4, blocks.5, blocks.6, blocks.7,
+        );
+
+        for i in 0..expected_vecs.len() {
+            println!("{}", i);
+            assert_eq!(cast_out(expected_vecs[i]), cast_out(gather_vecs[i]));
+        }
+    }
+}
+
 #[target_feature(enable = "avx2")]
 pub unsafe fn compress8_inner(
     h_vecs: &mut [__m256i; 8],

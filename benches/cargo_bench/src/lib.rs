@@ -38,6 +38,20 @@ fn bench_load_msg_vecs_interleave(b: &mut Bencher) {
 
 #[bench]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn bench_load_msg_vecs_gather(b: &mut Bencher) {
+    if !is_x86_feature_detected!("avx2") {
+        return;
+    }
+    b.bytes = BLOCK.len() as u64 * 8;
+    b.iter(|| unsafe {
+        benchmarks::load_msg_vecs_gather_avx2(
+            BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK,
+        )
+    });
+}
+
+#[bench]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 fn bench_blake2s_avx2_compress8(b: &mut Bencher) {
     if !is_x86_feature_detected!("avx2") {
         return;

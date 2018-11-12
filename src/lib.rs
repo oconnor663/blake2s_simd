@@ -749,6 +749,8 @@ pub mod benchmarks {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     pub use crate::avx2::compress8_inner as compress8_inner_avx2;
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    pub use crate::avx2::load_msg_vecs_gather as load_msg_vecs_gather_avx2;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     pub use crate::avx2::load_msg_vecs_interleave as load_msg_vecs_interleave_avx2;
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     pub use crate::avx2::load_msg_vecs_naive as load_msg_vecs_naive_avx2;
