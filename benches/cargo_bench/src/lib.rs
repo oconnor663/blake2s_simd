@@ -17,8 +17,33 @@ fn bench_load_msg_vecs_naive(b: &mut Bencher) {
         return;
     }
     b.bytes = BLOCK.len() as u64 * 8;
+    let block0 = [0; BLOCKBYTES];
+    let block1 = [1; BLOCKBYTES];
+    let block2 = [2; BLOCKBYTES];
+    let block3 = [3; BLOCKBYTES];
+    let block4 = [4; BLOCKBYTES];
+    let block5 = [5; BLOCKBYTES];
+    let block6 = [6; BLOCKBYTES];
+    let block7 = [7; BLOCKBYTES];
+    #[target_feature(enable = "avx2")]
+    unsafe fn inner(
+        block0: &[u8; BLOCKBYTES],
+        block1: &[u8; BLOCKBYTES],
+        block2: &[u8; BLOCKBYTES],
+        block3: &[u8; BLOCKBYTES],
+        block4: &[u8; BLOCKBYTES],
+        block5: &[u8; BLOCKBYTES],
+        block6: &[u8; BLOCKBYTES],
+        block7: &[u8; BLOCKBYTES],
+    ) -> [std::arch::x86_64::__m256i; 16] {
+        benchmarks::load_msg_vecs_naive_avx2(
+            &block0, &block1, &block2, &block3, &block4, &block5, &block6, &block7,
+        )
+    }
     b.iter(|| unsafe {
-        benchmarks::load_msg_vecs_naive_avx2(BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK)
+        inner(
+            &block0, &block1, &block2, &block3, &block4, &block5, &block6, &block7,
+        )
     });
 }
 
@@ -29,9 +54,32 @@ fn bench_load_msg_vecs_interleave(b: &mut Bencher) {
         return;
     }
     b.bytes = BLOCK.len() as u64 * 8;
-    b.iter(|| unsafe {
+    let block0 = [0; BLOCKBYTES];
+    let block1 = [1; BLOCKBYTES];
+    let block2 = [2; BLOCKBYTES];
+    let block3 = [3; BLOCKBYTES];
+    let block4 = [4; BLOCKBYTES];
+    let block5 = [5; BLOCKBYTES];
+    let block6 = [6; BLOCKBYTES];
+    let block7 = [7; BLOCKBYTES];
+    #[target_feature(enable = "avx2")]
+    unsafe fn inner(
+        block0: &[u8; BLOCKBYTES],
+        block1: &[u8; BLOCKBYTES],
+        block2: &[u8; BLOCKBYTES],
+        block3: &[u8; BLOCKBYTES],
+        block4: &[u8; BLOCKBYTES],
+        block5: &[u8; BLOCKBYTES],
+        block6: &[u8; BLOCKBYTES],
+        block7: &[u8; BLOCKBYTES],
+    ) -> [std::arch::x86_64::__m256i; 16] {
         benchmarks::load_msg_vecs_interleave_avx2(
-            BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK,
+            &block0, &block1, &block2, &block3, &block4, &block5, &block6, &block7,
+        )
+    }
+    b.iter(|| unsafe {
+        inner(
+            &block0, &block1, &block2, &block3, &block4, &block5, &block6, &block7,
         )
     });
 }
@@ -43,9 +91,32 @@ fn bench_load_msg_vecs_gather(b: &mut Bencher) {
         return;
     }
     b.bytes = BLOCK.len() as u64 * 8;
-    b.iter(|| unsafe {
+    let block0 = [0; BLOCKBYTES];
+    let block1 = [1; BLOCKBYTES];
+    let block2 = [2; BLOCKBYTES];
+    let block3 = [3; BLOCKBYTES];
+    let block4 = [4; BLOCKBYTES];
+    let block5 = [5; BLOCKBYTES];
+    let block6 = [6; BLOCKBYTES];
+    let block7 = [7; BLOCKBYTES];
+    #[target_feature(enable = "avx2")]
+    unsafe fn inner(
+        block0: &[u8; BLOCKBYTES],
+        block1: &[u8; BLOCKBYTES],
+        block2: &[u8; BLOCKBYTES],
+        block3: &[u8; BLOCKBYTES],
+        block4: &[u8; BLOCKBYTES],
+        block5: &[u8; BLOCKBYTES],
+        block6: &[u8; BLOCKBYTES],
+        block7: &[u8; BLOCKBYTES],
+    ) -> [std::arch::x86_64::__m256i; 16] {
         benchmarks::load_msg_vecs_gather_avx2(
-            BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK, BLOCK,
+            &block0, &block1, &block2, &block3, &block4, &block5, &block6, &block7,
+        )
+    }
+    b.iter(|| unsafe {
+        inner(
+            &block0, &block1, &block2, &block3, &block4, &block5, &block6, &block7,
         )
     });
 }
