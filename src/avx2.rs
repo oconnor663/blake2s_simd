@@ -449,6 +449,7 @@ fn test_load_2x256() {
     }
 }
 
+#[inline(always)]
 unsafe fn interleave_vecs(
     vec_a: __m256i,
     vec_b: __m256i,
