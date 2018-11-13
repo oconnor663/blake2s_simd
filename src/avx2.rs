@@ -251,30 +251,6 @@ unsafe fn blake2s_round_8x(v: &mut [__m256i; 16], m: &[__m256i; 16], r: usize) {
     v[4] = rot7(v[4]);
 }
 
-#[inline(always)]
-unsafe fn export_state_words_8x(
-    vec: __m256i,
-    h0: &mut StateWords,
-    h1: &mut StateWords,
-    h2: &mut StateWords,
-    h3: &mut StateWords,
-    h4: &mut StateWords,
-    h5: &mut StateWords,
-    h6: &mut StateWords,
-    h7: &mut StateWords,
-    i: usize,
-) {
-    let parts: [u32; 8] = mem::transmute(vec);
-    h0[i] = parts[0];
-    h1[i] = parts[1];
-    h2[i] = parts[2];
-    h3[i] = parts[3];
-    h4[i] = parts[4];
-    h5[i] = parts[5];
-    h6[i] = parts[6];
-    h7[i] = parts[7];
-}
-
 #[target_feature(enable = "avx2")]
 pub unsafe fn compress8(
     h0: &mut StateWords,
@@ -318,16 +294,16 @@ pub unsafe fn compress8(
     lastnode6: u32,
     lastnode7: u32,
 ) {
-    let mut h_vecs = [
-        load_256_from_8xu32(h0[0], h1[0], h2[0], h3[0], h4[0], h5[0], h6[0], h7[0]),
-        load_256_from_8xu32(h0[1], h1[1], h2[1], h3[1], h4[1], h5[1], h6[1], h7[1]),
-        load_256_from_8xu32(h0[2], h1[2], h2[2], h3[2], h4[2], h5[2], h6[2], h7[2]),
-        load_256_from_8xu32(h0[3], h1[3], h2[3], h3[3], h4[3], h5[3], h6[3], h7[3]),
-        load_256_from_8xu32(h0[4], h1[4], h2[4], h3[4], h4[4], h5[4], h6[4], h7[4]),
-        load_256_from_8xu32(h0[5], h1[5], h2[5], h3[5], h4[5], h5[5], h6[5], h7[5]),
-        load_256_from_8xu32(h0[6], h1[6], h2[6], h3[6], h4[6], h5[6], h6[6], h7[6]),
-        load_256_from_8xu32(h0[7], h1[7], h2[7], h3[7], h4[7], h5[7], h6[7], h7[7]),
-    ];
+    let mut h_vecs = interleave_vecs(
+        _mm256_loadu_si256(h0 as *const StateWords as *const __m256i),
+        _mm256_loadu_si256(h1 as *const StateWords as *const __m256i),
+        _mm256_loadu_si256(h2 as *const StateWords as *const __m256i),
+        _mm256_loadu_si256(h3 as *const StateWords as *const __m256i),
+        _mm256_loadu_si256(h4 as *const StateWords as *const __m256i),
+        _mm256_loadu_si256(h5 as *const StateWords as *const __m256i),
+        _mm256_loadu_si256(h6 as *const StateWords as *const __m256i),
+        _mm256_loadu_si256(h7 as *const StateWords as *const __m256i),
+    );
     let count_low = load_256_from_8xu32(
         count0 as u32,
         count1 as u32,
@@ -385,14 +361,17 @@ pub unsafe fn compress8(
         lastnode,
     );
 
-    export_state_words_8x(h_vecs[0], h0, h1, h2, h3, h4, h5, h6, h7, 0);
-    export_state_words_8x(h_vecs[1], h0, h1, h2, h3, h4, h5, h6, h7, 1);
-    export_state_words_8x(h_vecs[2], h0, h1, h2, h3, h4, h5, h6, h7, 2);
-    export_state_words_8x(h_vecs[3], h0, h1, h2, h3, h4, h5, h6, h7, 3);
-    export_state_words_8x(h_vecs[4], h0, h1, h2, h3, h4, h5, h6, h7, 4);
-    export_state_words_8x(h_vecs[5], h0, h1, h2, h3, h4, h5, h6, h7, 5);
-    export_state_words_8x(h_vecs[6], h0, h1, h2, h3, h4, h5, h6, h7, 6);
-    export_state_words_8x(h_vecs[7], h0, h1, h2, h3, h4, h5, h6, h7, 7);
+    let deinterleaved = interleave_vecs(
+        h_vecs[0], h_vecs[1], h_vecs[2], h_vecs[3], h_vecs[4], h_vecs[5], h_vecs[6], h_vecs[7],
+    );
+    *h0 = mem::transmute(deinterleaved[0]);
+    *h1 = mem::transmute(deinterleaved[1]);
+    *h2 = mem::transmute(deinterleaved[2]);
+    *h3 = mem::transmute(deinterleaved[3]);
+    *h4 = mem::transmute(deinterleaved[4]);
+    *h5 = mem::transmute(deinterleaved[5]);
+    *h6 = mem::transmute(deinterleaved[6]);
+    *h7 = mem::transmute(deinterleaved[7]);
 }
 
 #[inline(always)]
