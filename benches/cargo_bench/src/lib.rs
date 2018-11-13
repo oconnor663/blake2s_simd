@@ -285,7 +285,58 @@ fn bench_blake2s_update8_one_mb(b: &mut Bencher) {
 }
 
 #[bench]
+fn bench_blake2s_8way_one_block(b: &mut Bencher) {
+    b.bytes = 8 * BLOCKBYTES as u64;
+    let buf = vec![1; BLOCKBYTES];
+    b.iter(|| unsafe {
+        blake2s_8way(
+            &Params::new(),
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+        )
+    });
+}
+
+#[bench]
+fn bench_blake2s_8way_4096(b: &mut Bencher) {
+    b.bytes = 8 * 4096 as u64;
+    let buf = vec![1; 4096];
+    b.iter(|| unsafe {
+        blake2s_8way(
+            &Params::new(),
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+        )
+    });
+}
+
+#[bench]
 fn bench_blake2s_8way_one_mb(b: &mut Bencher) {
-    b.bytes = 8 * MB.len() as u64;
-    b.iter(|| unsafe { blake2s_8way(&Params::new(), MB, MB, MB, MB, MB, MB, MB, MB) });
+    b.bytes = 8 * (1 << 20);
+    let buf = vec![1; 1 << 20];
+    b.iter(|| unsafe {
+        blake2s_8way(
+            &Params::new(),
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+        )
+    });
 }
