@@ -751,26 +751,33 @@ fn export_hashes(h_vecs: &[__m256i; 8], hash_length: u8) -> [Hash; 8] {
     ]
 }
 
+#[target_feature(enable = "avx2")]
 pub unsafe fn blake2s_8way(
     // TODO: Separate params for each input.
     params: &Params,
-    mut input0: &[u8],
-    mut input1: &[u8],
-    mut input2: &[u8],
-    mut input3: &[u8],
-    mut input4: &[u8],
-    mut input5: &[u8],
-    mut input6: &[u8],
-    mut input7: &[u8],
+    input0: &[u8],
+    input1: &[u8],
+    input2: &[u8],
+    input3: &[u8],
+    input4: &[u8],
+    input5: &[u8],
+    input6: &[u8],
+    input7: &[u8],
 ) -> [Hash; 8] {
-    // TODO: Handle uneven lengths.
-    assert_eq!(input0.len(), input1.len());
-    assert_eq!(input0.len(), input2.len());
-    assert_eq!(input0.len(), input3.len());
-    assert_eq!(input0.len(), input4.len());
-    assert_eq!(input0.len(), input5.len());
-    assert_eq!(input0.len(), input6.len());
-    assert_eq!(input0.len(), input7.len());
+    let len = input0.len();
+    let same_length = input1.len() == len
+        && input2.len() == len
+        && input3.len() == len
+        && input4.len() == len
+        && input5.len() == len
+        && input6.len() == len
+        && input7.len() == len;
+    let even_length = len % BLOCKBYTES == 0;
+    let nonempty = len != 0;
+    assert!(
+        same_length && even_length && nonempty,
+        "invalid blake2s_8way inputs"
+    );
 
     let param_words = params.make_words();
     let mut h_vecs = [
@@ -783,25 +790,26 @@ pub unsafe fn blake2s_8way(
         load_256_from_u32(param_words[6]),
         load_256_from_u32(param_words[7]),
     ];
-    let mut count_low = load_256_from_u32(0);
-    let count_high = load_256_from_u32(0);
+    let mut count = 0;
 
-    while input0.len() >= BLOCKBYTES {
-        let msg0 = array_ref!(input0, 0, BLOCKBYTES);
-        let msg1 = array_ref!(input1, 0, BLOCKBYTES);
-        let msg2 = array_ref!(input2, 0, BLOCKBYTES);
-        let msg3 = array_ref!(input3, 0, BLOCKBYTES);
-        let msg4 = array_ref!(input4, 0, BLOCKBYTES);
-        let msg5 = array_ref!(input5, 0, BLOCKBYTES);
-        let msg6 = array_ref!(input6, 0, BLOCKBYTES);
-        let msg7 = array_ref!(input7, 0, BLOCKBYTES);
-        let lastblock = load_256_from_u32(if input0.is_empty() { !0 } else { 0 });
-        let lastnode = load_256_from_u32(if input0.is_empty() && params.last_node {
+    loop {
+        let msg0 = array_ref!(input0, count, BLOCKBYTES);
+        let msg1 = array_ref!(input1, count, BLOCKBYTES);
+        let msg2 = array_ref!(input2, count, BLOCKBYTES);
+        let msg3 = array_ref!(input3, count, BLOCKBYTES);
+        let msg4 = array_ref!(input4, count, BLOCKBYTES);
+        let msg5 = array_ref!(input5, count, BLOCKBYTES);
+        let msg6 = array_ref!(input6, count, BLOCKBYTES);
+        let msg7 = array_ref!(input7, count, BLOCKBYTES);
+        count += BLOCKBYTES;
+        let count_low = load_256_from_u32(count as u32);
+        let count_high = load_256_from_u32((count as u64 >> 32) as u32);
+        let lastblock = load_256_from_u32(if count == len { !0 } else { 0 });
+        let lastnode = load_256_from_u32(if params.last_node && count == len {
             !0
         } else {
             0
         });
-        count_low = add(count_low, load_256_from_u32(BLOCKBYTES as u32));
         compress8_inner(
             &mut h_vecs,
             msg0,
@@ -817,54 +825,8 @@ pub unsafe fn blake2s_8way(
             lastblock,
             lastnode,
         );
-        if input0.len() == BLOCKBYTES {
+        if count == len {
             return export_hashes(&h_vecs, params.hash_length);
         }
-        input0 = &input0[BLOCKBYTES..];
-        input1 = &input1[BLOCKBYTES..];
-        input2 = &input2[BLOCKBYTES..];
-        input3 = &input3[BLOCKBYTES..];
-        input4 = &input4[BLOCKBYTES..];
-        input5 = &input5[BLOCKBYTES..];
-        input6 = &input6[BLOCKBYTES..];
-        input7 = &input7[BLOCKBYTES..];
     }
-
-    // Compress the final partial block. Even multiples of the block length are handled entirely in
-    // the loop above.
-    let mut msg0 = [0; BLOCKBYTES];
-    let mut msg1 = [0; BLOCKBYTES];
-    let mut msg2 = [0; BLOCKBYTES];
-    let mut msg3 = [0; BLOCKBYTES];
-    let mut msg4 = [0; BLOCKBYTES];
-    let mut msg5 = [0; BLOCKBYTES];
-    let mut msg6 = [0; BLOCKBYTES];
-    let mut msg7 = [0; BLOCKBYTES];
-    msg0[..input0.len()].copy_from_slice(input0);
-    msg1[..input1.len()].copy_from_slice(input1);
-    msg2[..input2.len()].copy_from_slice(input2);
-    msg3[..input3.len()].copy_from_slice(input3);
-    msg4[..input4.len()].copy_from_slice(input4);
-    msg5[..input5.len()].copy_from_slice(input5);
-    msg6[..input6.len()].copy_from_slice(input6);
-    msg7[..input7.len()].copy_from_slice(input7);
-    let lastblock = load_256_from_u32(!0);
-    let lastnode = load_256_from_u32(if params.last_node { !0 } else { 0 });
-    count_low = add(count_low, load_256_from_u32(input0.len() as u32));
-    compress8_inner(
-        &mut h_vecs,
-        &msg0,
-        &msg1,
-        &msg2,
-        &msg3,
-        &msg4,
-        &msg5,
-        &msg6,
-        &msg7,
-        count_low,
-        count_high,
-        lastblock,
-        lastnode,
-    );
-    return export_hashes(&h_vecs, params.hash_length);
 }

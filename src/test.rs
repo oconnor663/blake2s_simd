@@ -577,14 +577,14 @@ fn test_update8() {
 
 #[test]
 fn test_blake2s_8way() {
-    let input0 = &[0; 100_000];
-    let input1 = &[1; 100_000];
-    let input2 = &[2; 100_000];
-    let input3 = &[3; 100_000];
-    let input4 = &[4; 100_000];
-    let input5 = &[5; 100_000];
-    let input6 = &[6; 100_000];
-    let input7 = &[7; 100_000];
+    let input0 = &[0; 4 * BLOCKBYTES];
+    let input1 = &[1; 4 * BLOCKBYTES];
+    let input2 = &[2; 4 * BLOCKBYTES];
+    let input3 = &[3; 4 * BLOCKBYTES];
+    let input4 = &[4; 4 * BLOCKBYTES];
+    let input5 = &[5; 4 * BLOCKBYTES];
+    let input6 = &[6; 4 * BLOCKBYTES];
+    let input7 = &[7; 4 * BLOCKBYTES];
     let mut params = Params::new();
     params.hash_length(29).last_node(true);
     let expected0 = params.to_state().update(input0).finalize();
