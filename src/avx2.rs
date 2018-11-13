@@ -369,7 +369,7 @@ pub unsafe fn compress8(
         lastnode7 as u32,
     );
 
-    compress8_inner(
+    compress8_inner_inline(
         &mut h_vecs,
         msg0,
         msg1,
