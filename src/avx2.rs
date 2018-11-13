@@ -680,6 +680,28 @@ pub unsafe fn compress8_inner(
     lastblock: __m256i,
     lastnode: __m256i,
 ) {
+    compress8_inner_inline(
+        h_vecs, msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, count_low, count_high, lastblock,
+        lastnode,
+    );
+}
+
+#[inline(always)]
+unsafe fn compress8_inner_inline(
+    h_vecs: &mut [__m256i; 8],
+    msg0: &Block,
+    msg1: &Block,
+    msg2: &Block,
+    msg3: &Block,
+    msg4: &Block,
+    msg5: &Block,
+    msg6: &Block,
+    msg7: &Block,
+    count_low: __m256i,
+    count_high: __m256i,
+    lastblock: __m256i,
+    lastnode: __m256i,
+) {
     let mut v = [
         h_vecs[0],
         h_vecs[1],
@@ -793,14 +815,14 @@ pub unsafe fn blake2s_8way(
     let mut count = 0;
 
     loop {
-        let msg0 = array_ref!(input0, count, BLOCKBYTES);
-        let msg1 = array_ref!(input1, count, BLOCKBYTES);
-        let msg2 = array_ref!(input2, count, BLOCKBYTES);
-        let msg3 = array_ref!(input3, count, BLOCKBYTES);
-        let msg4 = array_ref!(input4, count, BLOCKBYTES);
-        let msg5 = array_ref!(input5, count, BLOCKBYTES);
-        let msg6 = array_ref!(input6, count, BLOCKBYTES);
-        let msg7 = array_ref!(input7, count, BLOCKBYTES);
+        let msg0 = &*(input0.as_ptr().add(count) as *const Block);
+        let msg1 = &*(input1.as_ptr().add(count) as *const Block);
+        let msg2 = &*(input2.as_ptr().add(count) as *const Block);
+        let msg3 = &*(input3.as_ptr().add(count) as *const Block);
+        let msg4 = &*(input4.as_ptr().add(count) as *const Block);
+        let msg5 = &*(input5.as_ptr().add(count) as *const Block);
+        let msg6 = &*(input6.as_ptr().add(count) as *const Block);
+        let msg7 = &*(input7.as_ptr().add(count) as *const Block);
         count += BLOCKBYTES;
         let count_low = load_256_from_u32(count as u32);
         let count_high = load_256_from_u32((count as u64 >> 32) as u32);
@@ -810,7 +832,7 @@ pub unsafe fn blake2s_8way(
         } else {
             0
         });
-        compress8_inner(
+        compress8_inner_inline(
             &mut h_vecs,
             msg0,
             msg1,
