@@ -513,9 +513,9 @@ fn test_interleave_vecs() {
         let expected_g = load_256_from_8xu32(0x06, 0x16, 0x26, 0x36, 0x46, 0x56, 0x66, 0x76);
         let expected_h = load_256_from_8xu32(0x07, 0x17, 0x27, 0x37, 0x47, 0x57, 0x67, 0x77);
 
-        let [out_a, out_b, out_c, out_d, out_e, out_f, out_g, out_h] =
-            interleave_vecs(vec_a, vec_b, vec_c, vec_d, vec_e, vec_f, vec_g, vec_h);
+        let interleaved = interleave_vecs(vec_a, vec_b, vec_c, vec_d, vec_e, vec_f, vec_g, vec_h);
 
+        let [out_a, out_b, out_c, out_d, out_e, out_f, out_g, out_h] = interleaved;
         assert_eq!(cast_out(expected_a), cast_out(out_a));
         assert_eq!(cast_out(expected_b), cast_out(out_b));
         assert_eq!(cast_out(expected_c), cast_out(out_c));
@@ -524,6 +524,18 @@ fn test_interleave_vecs() {
         assert_eq!(cast_out(expected_f), cast_out(out_f));
         assert_eq!(cast_out(expected_g), cast_out(out_g));
         assert_eq!(cast_out(expected_h), cast_out(out_h));
+
+        // Check that interleaving again undoes the operation.
+        let deinterleaved = interleave_vecs(out_a, out_b, out_c, out_d, out_e, out_f, out_g, out_h);
+        let [out2_a, out2_b, out2_c, out2_d, out2_e, out2_f, out2_g, out2_h] = deinterleaved;
+        assert_eq!(cast_out(vec_a), cast_out(out2_a));
+        assert_eq!(cast_out(vec_b), cast_out(out2_b));
+        assert_eq!(cast_out(vec_c), cast_out(out2_c));
+        assert_eq!(cast_out(vec_d), cast_out(out2_d));
+        assert_eq!(cast_out(vec_e), cast_out(out2_e));
+        assert_eq!(cast_out(vec_f), cast_out(out2_f));
+        assert_eq!(cast_out(vec_g), cast_out(out2_g));
+        assert_eq!(cast_out(vec_h), cast_out(out2_h));
     }
 }
 
@@ -745,31 +757,44 @@ unsafe fn compress8_inner_inline(
 }
 
 #[inline(always)]
-fn export_hash(h_vecs: &[__m256i; 8], i: usize, hash_length: u8) -> Hash {
-    let mut hash_words = [0; 8];
-    for word in 0..8 {
-        let h_vec = &h_vecs[word];
-        unsafe {
-            hash_words[word] = *(h_vec as *const __m256i as *const u32).add(i);
-        }
-    }
-    Hash {
-        len: hash_length,
-        bytes: unsafe { mem::transmute(hash_words) },
-    }
-}
-
-#[inline(always)]
-fn export_hashes(h_vecs: &[__m256i; 8], hash_length: u8) -> [Hash; 8] {
+unsafe fn export_hashes(h_vecs: &[__m256i; 8], hash_length: u8) -> [Hash; 8] {
+    // Interleave is its own inverse.
+    let deinterleaved = interleave_vecs(
+        h_vecs[0], h_vecs[1], h_vecs[2], h_vecs[3], h_vecs[4], h_vecs[5], h_vecs[6], h_vecs[7],
+    );
     [
-        export_hash(h_vecs, 0, hash_length),
-        export_hash(h_vecs, 1, hash_length),
-        export_hash(h_vecs, 2, hash_length),
-        export_hash(h_vecs, 3, hash_length),
-        export_hash(h_vecs, 4, hash_length),
-        export_hash(h_vecs, 5, hash_length),
-        export_hash(h_vecs, 6, hash_length),
-        export_hash(h_vecs, 7, hash_length),
+        Hash {
+            len: hash_length,
+            bytes: mem::transmute(deinterleaved[0]),
+        },
+        Hash {
+            len: hash_length,
+            bytes: mem::transmute(deinterleaved[1]),
+        },
+        Hash {
+            len: hash_length,
+            bytes: mem::transmute(deinterleaved[2]),
+        },
+        Hash {
+            len: hash_length,
+            bytes: mem::transmute(deinterleaved[3]),
+        },
+        Hash {
+            len: hash_length,
+            bytes: mem::transmute(deinterleaved[4]),
+        },
+        Hash {
+            len: hash_length,
+            bytes: mem::transmute(deinterleaved[5]),
+        },
+        Hash {
+            len: hash_length,
+            bytes: mem::transmute(deinterleaved[6]),
+        },
+        Hash {
+            len: hash_length,
+            bytes: mem::transmute(deinterleaved[7]),
+        },
     ]
 }
 
