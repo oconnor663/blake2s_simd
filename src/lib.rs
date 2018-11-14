@@ -101,6 +101,17 @@ type Compress8Fn = unsafe fn(
     lastnode6: u32,
     lastnode7: u32,
 );
+type Hash8ExactFn = unsafe fn(
+    params: &Params,
+    input0: &[u8],
+    input1: &[u8],
+    input2: &[u8],
+    input3: &[u8],
+    input4: &[u8],
+    input5: &[u8],
+    input6: &[u8],
+    input7: &[u8],
+) -> [Hash; 8];
 type StateWords = [u32; 8];
 type Block = [u8; BLOCKBYTES];
 type HexString = arrayvec::ArrayString<[u8; 2 * OUTBYTES]>;
@@ -469,24 +480,6 @@ impl fmt::Debug for Hash {
     }
 }
 
-// Safety: The unsafe blocks above rely on this function to never return avx2::compress except on
-// platforms where it's safe to call.
-#[allow(unreachable_code)]
-fn default_compress_impl() -> (CompressFn, Compress8Fn) {
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    {
-        #[cfg(feature = "std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                // Note that there's no AVX2 compress implementation for BLAKE2s. Only compress8.
-                return (portable::compress, avx2::compress8);
-            }
-        }
-    }
-    // On other platforms (non-x86 or pre-AVX2) use the portable implementation.
-    (portable::compress, portable::compress8)
-}
-
 pub fn update8(
     state0: &mut State,
     state1: &mut State,
@@ -516,7 +509,7 @@ pub fn update8(
     state7.compress_buffer_if_possible(&mut input7);
     // Now, as long as all of the states have more than a block of input coming (so that we know we
     // don't need to finalize any of them), compress in parallel directly into their state words.
-    let (_, compress8_fn) = default_compress_impl();
+    let compress8_fn = default_compress_impl().1;
     while input0.len() > BLOCKBYTES
         && input1.len() > BLOCKBYTES
         && input2.len() > BLOCKBYTES
@@ -654,7 +647,7 @@ pub fn finalize8(
     let mut h_copy6 = state6.h;
     let mut h_copy7 = state7.h;
     // Do the final parallel compression step.
-    let (_, compress8_fn) = default_compress_impl();
+    let compress8_fn = default_compress_impl().1;
     unsafe {
         compress8_fn(
             &mut h_copy0,
@@ -736,7 +729,63 @@ pub fn finalize8(
     ]
 }
 
-pub use avx2::blake2s_8way;
+pub fn hash8_exact(
+    // TODO: Separate params for each input.
+    params: &Params,
+    input0: &[u8],
+    input1: &[u8],
+    input2: &[u8],
+    input3: &[u8],
+    input4: &[u8],
+    input5: &[u8],
+    input6: &[u8],
+    input7: &[u8],
+) -> [Hash; 8] {
+    // These asserts are safety invariants for the AVX2 implementation.
+    let len = input0.len();
+    let same_length = (input1.len() == len)
+        && (input2.len() == len)
+        && (input3.len() == len)
+        && (input4.len() == len)
+        && (input5.len() == len)
+        && (input6.len() == len)
+        && (input7.len() == len);
+    let even_length = len % BLOCKBYTES == 0;
+    let nonempty = len != 0;
+    assert!(
+        same_length && even_length && nonempty,
+        "invalid hash8_exact inputs"
+    );
+
+    let hash8_exact_fn = default_compress_impl().2;
+    unsafe {
+        hash8_exact_fn(
+            params, input0, input1, input2, input3, input4, input5, input6, input7,
+        )
+    }
+}
+
+// Safety: The unsafe blocks above rely on this function to never return avx2::compress except on
+// platforms where it's safe to call.
+#[allow(unreachable_code)]
+fn default_compress_impl() -> (CompressFn, Compress8Fn, Hash8ExactFn) {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        #[cfg(feature = "std")]
+        {
+            if is_x86_feature_detected!("avx2") {
+                // Note that there's no AVX2 compress implementation for BLAKE2s. Only compress8.
+                return (portable::compress, avx2::compress8, avx2::hash8_exact);
+            }
+        }
+    }
+    // On other platforms (non-x86 or pre-AVX2) use the portable implementation.
+    (
+        portable::compress,
+        portable::compress8,
+        portable::hash8_exact,
+    )
+}
 
 // This module is pub for internal benchmarks only. Please don't use it.
 #[doc(hidden)]

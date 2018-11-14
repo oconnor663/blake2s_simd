@@ -780,7 +780,7 @@ unsafe fn export_hashes(h_vecs: &[__m256i; 8], hash_length: u8) -> [Hash; 8] {
 }
 
 #[target_feature(enable = "avx2")]
-pub unsafe fn blake2s_8way(
+pub unsafe fn hash8_exact(
     // TODO: Separate params for each input.
     params: &Params,
     input0: &[u8],
@@ -792,20 +792,10 @@ pub unsafe fn blake2s_8way(
     input6: &[u8],
     input7: &[u8],
 ) -> [Hash; 8] {
-    let len = input0.len();
-    let same_length = input1.len() == len
-        && input2.len() == len
-        && input3.len() == len
-        && input4.len() == len
-        && input5.len() == len
-        && input6.len() == len
-        && input7.len() == len;
-    let even_length = len % BLOCKBYTES == 0;
-    let nonempty = len != 0;
-    assert!(
-        same_length && even_length && nonempty,
-        "invalid blake2s_8way inputs"
-    );
+    // INVARIANTS! The caller must assert:
+    //   1. The inputs are the same length.
+    //   2. The inputs are a multiple of the block size.
+    //   3. The inputs aren't empty.
 
     let param_words = params.make_words();
     // This creates word vectors in an aready-transposed position.
@@ -819,9 +809,13 @@ pub unsafe fn blake2s_8way(
         load_256_from_u32(param_words[6]),
         load_256_from_u32(param_words[7]),
     ];
+    let len = input0.len();
     let mut count = 0;
 
     loop {
+        // Use pointer casts to avoid bounds checks here. The caller has to assert that these exact
+        // bounds are valid. Note that if these bounds were wrong, we'd get the wrong hash in any
+        // case, because count is an input to the compression function.
         let msg0 = &*(input0.as_ptr().add(count) as *const Block);
         let msg1 = &*(input1.as_ptr().add(count) as *const Block);
         let msg2 = &*(input2.as_ptr().add(count) as *const Block);

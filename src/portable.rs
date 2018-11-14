@@ -1,9 +1,6 @@
 use byteorder::{ByteOrder, LittleEndian};
 
-use crate::Block;
-use crate::StateWords;
-use crate::IV;
-use crate::SIGMA;
+use super::*;
 
 // G is the mixing function, called eight times per round in the compression
 // function. V is the 16-word state vector of the compression function, usually
@@ -158,4 +155,27 @@ pub fn compress8(
     compress(h5, msg5, count5, lastblock5, lastnode5);
     compress(h6, msg6, count6, lastblock6, lastnode6);
     compress(h7, msg7, count7, lastblock7, lastnode7);
+}
+
+pub fn hash8_exact(
+    params: &Params,
+    input0: &[u8],
+    input1: &[u8],
+    input2: &[u8],
+    input3: &[u8],
+    input4: &[u8],
+    input5: &[u8],
+    input6: &[u8],
+    input7: &[u8],
+) -> [Hash; 8] {
+    [
+        params.to_state().update(input0).finalize(),
+        params.to_state().update(input1).finalize(),
+        params.to_state().update(input2).finalize(),
+        params.to_state().update(input3).finalize(),
+        params.to_state().update(input4).finalize(),
+        params.to_state().update(input5).finalize(),
+        params.to_state().update(input6).finalize(),
+        params.to_state().update(input7).finalize(),
+    ]
 }

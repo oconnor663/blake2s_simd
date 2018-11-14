@@ -576,17 +576,17 @@ fn test_update8() {
 }
 
 #[test]
-fn test_blake2s_8way() {
-    let input0 = &[0; 4 * BLOCKBYTES];
-    let input1 = &[1; 4 * BLOCKBYTES];
-    let input2 = &[2; 4 * BLOCKBYTES];
-    let input3 = &[3; 4 * BLOCKBYTES];
-    let input4 = &[4; 4 * BLOCKBYTES];
-    let input5 = &[5; 4 * BLOCKBYTES];
-    let input6 = &[6; 4 * BLOCKBYTES];
-    let input7 = &[7; 4 * BLOCKBYTES];
+fn test_hash8_exact() {
+    let input0 = &[0xf0; 4 * BLOCKBYTES];
+    let input1 = &[0xf1; 4 * BLOCKBYTES];
+    let input2 = &[0xf2; 4 * BLOCKBYTES];
+    let input3 = &[0xf3; 4 * BLOCKBYTES];
+    let input4 = &[0xf4; 4 * BLOCKBYTES];
+    let input5 = &[0xf5; 4 * BLOCKBYTES];
+    let input6 = &[0xf6; 4 * BLOCKBYTES];
+    let input7 = &[0xf7; 4 * BLOCKBYTES];
     let mut params = Params::new();
-    params.hash_length(29).last_node(true);
+    params.hash_length(31).personal(b"foo").last_node(true);
     let expected0 = params.to_state().update(input0).finalize();
     let expected1 = params.to_state().update(input1).finalize();
     let expected2 = params.to_state().update(input2).finalize();
@@ -595,17 +595,15 @@ fn test_blake2s_8way() {
     let expected5 = params.to_state().update(input5).finalize();
     let expected6 = params.to_state().update(input6).finalize();
     let expected7 = params.to_state().update(input7).finalize();
-    let hashes = unsafe {
-        blake2s_8way(
-            &params, input0, input1, input2, input3, input4, input5, input6, input7,
-        )
-    };
-    assert_eq!(expected0, hashes[0]);
-    assert_eq!(expected1, hashes[1]);
-    assert_eq!(expected2, hashes[2]);
-    assert_eq!(expected3, hashes[3]);
-    assert_eq!(expected4, hashes[4]);
-    assert_eq!(expected5, hashes[5]);
-    assert_eq!(expected6, hashes[6]);
-    assert_eq!(expected7, hashes[7]);
+    let [out0, out1, out2, out3, out4, out5, out6, out7] = hash8_exact(
+        &params, input0, input1, input2, input3, input4, input5, input6, input7,
+    );
+    assert_eq!(expected0, out0);
+    assert_eq!(expected1, out1);
+    assert_eq!(expected2, out2);
+    assert_eq!(expected3, out3);
+    assert_eq!(expected4, out4);
+    assert_eq!(expected5, out5);
+    assert_eq!(expected6, out6);
+    assert_eq!(expected7, out7);
 }
