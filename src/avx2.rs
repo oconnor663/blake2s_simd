@@ -295,7 +295,7 @@ pub unsafe fn compress8(
     lastnode6: u32,
     lastnode7: u32,
 ) {
-    let mut h_vecs = interleave_vecs(
+    let mut h_vecs = transpose_vecs(
         _mm256_loadu_si256(h0 as *const StateWords as *const __m256i),
         _mm256_loadu_si256(h1 as *const StateWords as *const __m256i),
         _mm256_loadu_si256(h2 as *const StateWords as *const __m256i),
@@ -362,17 +362,17 @@ pub unsafe fn compress8(
         lastnode,
     );
 
-    let deinterleaved = interleave_vecs(
+    let untransposed = transpose_vecs(
         h_vecs[0], h_vecs[1], h_vecs[2], h_vecs[3], h_vecs[4], h_vecs[5], h_vecs[6], h_vecs[7],
     );
-    *h0 = mem::transmute(deinterleaved[0]);
-    *h1 = mem::transmute(deinterleaved[1]);
-    *h2 = mem::transmute(deinterleaved[2]);
-    *h3 = mem::transmute(deinterleaved[3]);
-    *h4 = mem::transmute(deinterleaved[4]);
-    *h5 = mem::transmute(deinterleaved[5]);
-    *h6 = mem::transmute(deinterleaved[6]);
-    *h7 = mem::transmute(deinterleaved[7]);
+    *h0 = mem::transmute(untransposed[0]);
+    *h1 = mem::transmute(untransposed[1]);
+    *h2 = mem::transmute(untransposed[2]);
+    *h3 = mem::transmute(untransposed[3]);
+    *h4 = mem::transmute(untransposed[4]);
+    *h5 = mem::transmute(untransposed[5]);
+    *h6 = mem::transmute(untransposed[6]);
+    *h7 = mem::transmute(untransposed[7]);
 }
 
 #[inline(always)]
@@ -430,7 +430,7 @@ fn test_load_2x256() {
 }
 
 #[inline(always)]
-unsafe fn interleave_vecs(
+unsafe fn transpose_vecs(
     vec_a: __m256i,
     vec_b: __m256i,
     vec_c: __m256i,
@@ -473,7 +473,7 @@ unsafe fn interleave_vecs(
 
 #[cfg(test)]
 #[test]
-fn test_interleave_vecs() {
+fn test_transpose_vecs() {
     unsafe {
         let vec_a = load_256_from_8xu32(0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07);
         let vec_b = load_256_from_8xu32(0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17);
@@ -493,7 +493,7 @@ fn test_interleave_vecs() {
         let expected_g = load_256_from_8xu32(0x06, 0x16, 0x26, 0x36, 0x46, 0x56, 0x66, 0x76);
         let expected_h = load_256_from_8xu32(0x07, 0x17, 0x27, 0x37, 0x47, 0x57, 0x67, 0x77);
 
-        let interleaved = interleave_vecs(vec_a, vec_b, vec_c, vec_d, vec_e, vec_f, vec_g, vec_h);
+        let interleaved = transpose_vecs(vec_a, vec_b, vec_c, vec_d, vec_e, vec_f, vec_g, vec_h);
 
         let [out_a, out_b, out_c, out_d, out_e, out_f, out_g, out_h] = interleaved;
         assert_eq!(cast_out(expected_a), cast_out(out_a));
@@ -506,7 +506,7 @@ fn test_interleave_vecs() {
         assert_eq!(cast_out(expected_h), cast_out(out_h));
 
         // Check that interleaving again undoes the operation.
-        let deinterleaved = interleave_vecs(out_a, out_b, out_c, out_d, out_e, out_f, out_g, out_h);
+        let deinterleaved = transpose_vecs(out_a, out_b, out_c, out_d, out_e, out_f, out_g, out_h);
         let [out2_a, out2_b, out2_c, out2_d, out2_e, out2_f, out2_g, out2_h] = deinterleaved;
         assert_eq!(cast_out(vec_a), cast_out(out2_a));
         assert_eq!(cast_out(vec_b), cast_out(out2_b));
@@ -539,10 +539,10 @@ pub unsafe fn load_msg_vecs_interleave(
     let (front_g, back_g) = load_2x256(msg_g);
     let (front_h, back_h) = load_2x256(msg_h);
 
-    let front_interleaved = interleave_vecs(
+    let front_interleaved = transpose_vecs(
         front_a, front_b, front_c, front_d, front_e, front_f, front_g, front_h,
     );
-    let back_interleaved = interleave_vecs(
+    let back_interleaved = transpose_vecs(
         back_a, back_b, back_c, back_d, back_e, back_f, back_g, back_h,
     );
 
@@ -791,9 +791,11 @@ unsafe fn compress8_inner_inline(
 #[inline(always)]
 unsafe fn export_hashes(h_vecs: &[__m256i; 8], hash_length: u8) -> [Hash; 8] {
     // Interleave is its own inverse.
-    let deinterleaved = interleave_vecs(
+    let deinterleaved = transpose_vecs(
         h_vecs[0], h_vecs[1], h_vecs[2], h_vecs[3], h_vecs[4], h_vecs[5], h_vecs[6], h_vecs[7],
     );
+    // BLAKE2 and x86 both use little-endian representation, so we can just transmute the word
+    // bytes out of each de-interleaved vector.
     [
         Hash {
             len: hash_length,
@@ -859,6 +861,7 @@ pub unsafe fn blake2s_8way(
     );
 
     let param_words = params.make_words();
+    // This creates word vectors in an aready-transposed position.
     let mut h_vecs = [
         load_256_from_u32(param_words[0]),
         load_256_from_u32(param_words[1]),
