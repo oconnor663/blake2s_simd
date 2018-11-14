@@ -148,32 +148,41 @@ fn bench_blake2s_avx2_compress8(b: &mut Bencher) {
 #[bench]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 fn bench_blake2s_avx2_compress8_inner(b: &mut Bencher) {
-    #[cfg(target_arch = "x86")]
-    use std::arch::x86::*;
-    #[cfg(target_arch = "x86_64")]
-    use std::arch::x86_64::*;
     if !is_x86_feature_detected!("avx2") {
         return;
     }
     b.bytes = BLOCK.len() as u64 * 8;
     unsafe {
-        let mut h_vecs: [__m256i; 8] = mem::zeroed();
+        let mut h_vecs = mem::zeroed();
+        let msg1 = [0; BLOCKBYTES];
+        let msg2 = [0; BLOCKBYTES];
+        let msg3 = [0; BLOCKBYTES];
+        let msg4 = [0; BLOCKBYTES];
+        let msg5 = [0; BLOCKBYTES];
+        let msg6 = [0; BLOCKBYTES];
+        let msg7 = [0; BLOCKBYTES];
+        let msg8 = [0; BLOCKBYTES];
+        let count_low = mem::zeroed();
+        let count_high = mem::zeroed();
+        let lastblock = mem::zeroed();
+        let lastnode = mem::zeroed();
         b.iter(|| {
             benchmarks::compress8_inner_avx2(
                 &mut h_vecs,
-                BLOCK,
-                BLOCK,
-                BLOCK,
-                BLOCK,
-                BLOCK,
-                BLOCK,
-                BLOCK,
-                BLOCK,
-                mem::zeroed(),
-                mem::zeroed(),
-                mem::zeroed(),
-                mem::zeroed(),
-            )
+                &msg1,
+                &msg2,
+                &msg3,
+                &msg4,
+                &msg5,
+                &msg6,
+                &msg7,
+                &msg8,
+                count_low,
+                count_high,
+                lastblock,
+                lastnode,
+            );
+            test::black_box(&mut h_vecs);
         });
     }
 }
