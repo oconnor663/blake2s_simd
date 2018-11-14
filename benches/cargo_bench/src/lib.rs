@@ -147,7 +147,7 @@ fn bench_blake2s_avx2_compress8(b: &mut Bencher) {
 
 #[bench]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-fn bench_blake2s_avx2_compress8_inner(b: &mut Bencher) {
+fn bench_blake2s_avx2_compress8_transposed(b: &mut Bencher) {
     if !is_x86_feature_detected!("avx2") {
         return;
     }
@@ -167,7 +167,7 @@ fn bench_blake2s_avx2_compress8_inner(b: &mut Bencher) {
         let lastblock = mem::zeroed();
         let lastnode = mem::zeroed();
         b.iter(|| {
-            benchmarks::compress8_inner_avx2(
+            benchmarks::compress8_transposed_avx2(
                 &mut h_vecs,
                 &msg1,
                 &msg2,
@@ -337,84 +337,6 @@ fn bench_blake2s_8way_one_mb(b: &mut Bencher) {
     let buf = vec![1; 1 << 20];
     b.iter(|| unsafe {
         blake2s_8way(
-            &Params::new(),
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-        )
-    });
-}
-
-#[bench]
-fn bench_blake2s_hash8_one_block(b: &mut Bencher) {
-    b.bytes = 8 * BLOCKBYTES as u64;
-    let buf = vec![1; BLOCKBYTES];
-    b.iter(|| {
-        hash8(
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-        )
-    });
-}
-
-#[bench]
-fn bench_blake2s_hash8_4096(b: &mut Bencher) {
-    b.bytes = 8 * 4096 as u64;
-    let buf = vec![1; 4096];
-    b.iter(|| {
-        hash8(
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-            &buf,
-        )
-    });
-}
-
-#[bench]
-fn bench_blake2s_hash8_one_mb(b: &mut Bencher) {
-    b.bytes = 8 * (1 << 20);
-    let buf = vec![1; 1 << 20];
-    b.iter(|| {
-        hash8(
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
-            &Params::new(),
             &Params::new(),
             &buf,
             &buf,
