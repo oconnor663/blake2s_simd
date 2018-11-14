@@ -5,6 +5,7 @@ extern crate blake2s_simd;
 extern crate test;
 
 use blake2s_simd::BLOCKBYTES;
+use std::mem;
 
 const TOTAL_BYTES_PER_TYPE: usize = 1 << 30; // 1 gigabyte
 
@@ -55,6 +56,48 @@ fn blake2s_compression_8x() -> (u64, usize) {
         total_ticks += end - start;
     }
     (total_ticks, iterations * SIZE)
+}
+
+fn blake2s_compression_8x_transposed() -> (u64, usize) {
+    unsafe {
+        const SIZE: usize = 8 * BLOCKBYTES;
+        let iterations = TOTAL_BYTES_PER_TYPE / SIZE;
+        let mut total_ticks = 0;
+        let mut h_vecs = mem::zeroed();
+        let msg0 = &[1; BLOCKBYTES];
+        let msg1 = &[2; BLOCKBYTES];
+        let msg2 = &[3; BLOCKBYTES];
+        let msg3 = &[4; BLOCKBYTES];
+        let msg4 = &[5; BLOCKBYTES];
+        let msg5 = &[6; BLOCKBYTES];
+        let msg6 = &[7; BLOCKBYTES];
+        let msg7 = &[8; BLOCKBYTES];
+        let count_low = mem::zeroed();
+        let count_high = mem::zeroed();
+        let lastblock = mem::zeroed();
+        let lastnode = mem::zeroed();
+        for _ in 0..iterations {
+            let start = amd64_timer::ticks_modern();
+            blake2s_simd::benchmarks::compress8_transposed_avx2(
+                &mut h_vecs,
+                &msg0,
+                &msg1,
+                &msg2,
+                &msg3,
+                &msg4,
+                &msg5,
+                &msg6,
+                &msg7,
+                count_low,
+                count_high,
+                lastblock,
+                lastnode,
+            );
+            let end = amd64_timer::ticks_modern();
+            total_ticks += end - start;
+        }
+        (total_ticks, iterations * SIZE)
+    }
 }
 
 fn blake2s_one_mb() -> (u64, usize) {
@@ -135,7 +178,11 @@ fn main() {
     assert!(is_x86_feature_detected!("avx2"));
     let cases: &[(&str, fn() -> (u64, usize))] = &[
         ("BLAKE2s compression function", blake2s_compression),
-        ("BLAKE2s 4-way compression function", blake2s_compression_8x),
+        ("BLAKE2s 8-way compression function", blake2s_compression_8x),
+        (
+            "BLAKE2s 8-way transposed compression",
+            blake2s_compression_8x_transposed,
+        ),
         ("BLAKE2s 1 MB", blake2s_one_mb),
         ("BLAKE2sp 1 MB", blake2sp_one_mb),
         ("BLAKE2s update8 1 MB", blake2s_update8_one_mb),
@@ -147,7 +194,7 @@ fn main() {
         // Loop for real.
         let (total_cycles, total_bytes) = f();
         println!(
-            "{:34}  {:.3}",
+            "{:36}  {:.3}",
             name,
             total_cycles as f64 / total_bytes as f64
         );
