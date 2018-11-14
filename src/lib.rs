@@ -736,6 +736,165 @@ pub fn finalize8(
     ]
 }
 
+// 32-byte alignment is required for AVX2.
+#[repr(align(32))]
+struct Aligned8x8Words([[u32; 8]; 8]);
+
+fn export_bytes(words: &Aligned8x8Words, i: usize) -> [u8; OUTBYTES] {
+    let mut bytes = [0; OUTBYTES];
+    for word in 0..8 {
+        LittleEndian::write_u32(&mut bytes[4 * word..][..4], words.0[word][i])
+    }
+    bytes
+}
+
+fn export_hashes(words: &Aligned8x8Words, hash_lengths: [u8; 8]) -> [Hash; 8] {
+    [
+        Hash {
+            bytes: export_bytes(words, 0),
+            len: hash_lengths[0],
+        },
+        Hash {
+            bytes: export_bytes(words, 1),
+            len: hash_lengths[1],
+        },
+        Hash {
+            bytes: export_bytes(words, 2),
+            len: hash_lengths[2],
+        },
+        Hash {
+            bytes: export_bytes(words, 3),
+            len: hash_lengths[3],
+        },
+        Hash {
+            bytes: export_bytes(words, 4),
+            len: hash_lengths[4],
+        },
+        Hash {
+            bytes: export_bytes(words, 5),
+            len: hash_lengths[5],
+        },
+        Hash {
+            bytes: export_bytes(words, 6),
+            len: hash_lengths[6],
+        },
+        Hash {
+            bytes: export_bytes(words, 7),
+            len: hash_lengths[7],
+        },
+    ]
+}
+
+pub fn hash8(
+    params0: &Params,
+    params1: &Params,
+    params2: &Params,
+    params3: &Params,
+    params4: &Params,
+    params5: &Params,
+    params6: &Params,
+    params7: &Params,
+    input0: &[u8],
+    input1: &[u8],
+    input2: &[u8],
+    input3: &[u8],
+    input4: &[u8],
+    input5: &[u8],
+    input6: &[u8],
+    input7: &[u8],
+) -> [Hash; 8] {
+    let len = input0.len();
+    let same_length = input1.len() == len
+        && input2.len() == len
+        && input3.len() == len
+        && input4.len() == len
+        && input5.len() == len
+        && input6.len() == len
+        && input7.len() == len;
+    let even_length = len % BLOCKBYTES == 0;
+    let nonempty = len != 0;
+    assert!(
+        same_length && even_length && nonempty,
+        "invalid hash8 inputs"
+    );
+
+    let w0 = params0.make_words();
+    let w1 = params1.make_words();
+    let w2 = params2.make_words();
+    let w3 = params3.make_words();
+    let w4 = params4.make_words();
+    let w5 = params5.make_words();
+    let w6 = params6.make_words();
+    let w7 = params7.make_words();
+    let mut state_words = Aligned8x8Words([
+        [w0[0], w1[0], w2[0], w3[0], w4[0], w5[0], w6[0], w7[0]],
+        [w0[1], w1[1], w2[1], w3[1], w4[1], w5[1], w6[1], w7[1]],
+        [w0[2], w1[2], w2[2], w3[2], w4[2], w5[2], w6[2], w7[2]],
+        [w0[3], w1[3], w2[3], w3[3], w4[3], w5[3], w6[3], w7[3]],
+        [w0[4], w1[4], w2[4], w3[4], w4[4], w5[4], w6[4], w7[4]],
+        [w0[5], w1[5], w2[5], w3[5], w4[5], w5[5], w6[5], w7[5]],
+        [w0[6], w1[6], w2[6], w3[6], w4[6], w5[6], w6[6], w7[6]],
+        [w0[7], w1[7], w2[7], w3[7], w4[7], w5[7], w6[7], w7[7]],
+    ]);
+
+    let mut count = 0;
+    loop {
+        let msg0 = array_ref!(input0, count, BLOCKBYTES);
+        let msg1 = array_ref!(input1, count, BLOCKBYTES);
+        let msg2 = array_ref!(input2, count, BLOCKBYTES);
+        let msg3 = array_ref!(input3, count, BLOCKBYTES);
+        let msg4 = array_ref!(input4, count, BLOCKBYTES);
+        let msg5 = array_ref!(input5, count, BLOCKBYTES);
+        let msg6 = array_ref!(input6, count, BLOCKBYTES);
+        let msg7 = array_ref!(input7, count, BLOCKBYTES);
+        count += BLOCKBYTES;
+        unsafe {
+            avx2::compress8_transposed(
+                &mut state_words,
+                msg0,
+                msg1,
+                msg2,
+                msg3,
+                msg4,
+                msg5,
+                msg6,
+                msg7,
+                [count as u64; 8],
+                if count == len { [!0; 8] } else { [0; 8] },
+                if count == len {
+                    [
+                        if params0.last_node { !0 } else { 0 },
+                        if params1.last_node { !0 } else { 0 },
+                        if params2.last_node { !0 } else { 0 },
+                        if params3.last_node { !0 } else { 0 },
+                        if params4.last_node { !0 } else { 0 },
+                        if params5.last_node { !0 } else { 0 },
+                        if params6.last_node { !0 } else { 0 },
+                        if params7.last_node { !0 } else { 0 },
+                    ]
+                } else {
+                    [0; 8]
+                },
+            );
+        }
+        if count == len {
+            return export_hashes(
+                &state_words,
+                [
+                    params0.hash_length,
+                    params1.hash_length,
+                    params2.hash_length,
+                    params3.hash_length,
+                    params4.hash_length,
+                    params5.hash_length,
+                    params6.hash_length,
+                    params7.hash_length,
+                ],
+            );
+        }
+    }
+}
+
 pub use avx2::blake2s_8way;
 
 // This module is pub for internal benchmarks only. Please don't use it.

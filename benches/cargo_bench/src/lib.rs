@@ -340,3 +340,81 @@ fn bench_blake2s_8way_one_mb(b: &mut Bencher) {
         )
     });
 }
+
+#[bench]
+fn bench_blake2s_hash8_one_block(b: &mut Bencher) {
+    b.bytes = 8 * BLOCKBYTES as u64;
+    let buf = vec![1; BLOCKBYTES];
+    b.iter(|| {
+        hash8(
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+        )
+    });
+}
+
+#[bench]
+fn bench_blake2s_hash8_4096(b: &mut Bencher) {
+    b.bytes = 8 * 4096 as u64;
+    let buf = vec![1; 4096];
+    b.iter(|| {
+        hash8(
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+        )
+    });
+}
+
+#[bench]
+fn bench_blake2s_hash8_one_mb(b: &mut Bencher) {
+    b.bytes = 8 * (1 << 20);
+    let buf = vec![1; 1 << 20];
+    b.iter(|| {
+        hash8(
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+        )
+    });
+}

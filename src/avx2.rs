@@ -6,6 +6,7 @@ use core::arch::x86_64::*;
 use byteorder::{ByteOrder, LittleEndian};
 use core::mem;
 
+use crate::Aligned8x8Words;
 use crate::Block;
 use crate::Hash;
 use crate::Params;
@@ -674,6 +675,58 @@ pub unsafe fn compress8_inner(
     compress8_inner_inline(
         h_vecs, msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, count_low, count_high, lastblock,
         lastnode,
+    );
+}
+
+#[target_feature(enable = "avx2")]
+pub(crate) unsafe fn compress8_transposed(
+    state_bytes: &mut Aligned8x8Words,
+    msg0: &Block,
+    msg1: &Block,
+    msg2: &Block,
+    msg3: &Block,
+    msg4: &Block,
+    msg5: &Block,
+    msg6: &Block,
+    msg7: &Block,
+    count: [u64; 8],
+    lastblock: [u32; 8],
+    lastnode: [u32; 8],
+) {
+    // The 32-byte alignment of Aligned8x8Words makes this safe.
+    let h_vecs = &mut *(state_bytes as *mut Aligned8x8Words as *mut [__m256i; 8]);
+    compress8_inner_inline(
+        h_vecs,
+        msg0,
+        msg1,
+        msg2,
+        msg3,
+        msg4,
+        msg5,
+        msg6,
+        msg7,
+        load_256_from_8xu32(
+            count[0] as u32,
+            count[1] as u32,
+            count[2] as u32,
+            count[3] as u32,
+            count[4] as u32,
+            count[5] as u32,
+            count[6] as u32,
+            count[7] as u32,
+        ),
+        load_256_from_8xu32(
+            (count[0] >> 32) as u32,
+            (count[1] >> 32) as u32,
+            (count[2] >> 32) as u32,
+            (count[3] >> 32) as u32,
+            (count[4] >> 32) as u32,
+            (count[5] >> 32) as u32,
+            (count[6] >> 32) as u32,
+            (count[7] >> 32) as u32,
+        ),
+        mem::transmute(lastblock),
+        mem::transmute(lastnode),
     );
 }
 

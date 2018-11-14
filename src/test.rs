@@ -609,3 +609,55 @@ fn test_blake2s_8way() {
     assert_eq!(expected6, hashes[6]);
     assert_eq!(expected7, hashes[7]);
 }
+
+#[test]
+fn test_hash8() {
+    let input0 = &[0; 4 * BLOCKBYTES];
+    let input1 = &[1; 4 * BLOCKBYTES];
+    let input2 = &[2; 4 * BLOCKBYTES];
+    let input3 = &[3; 4 * BLOCKBYTES];
+    let input4 = &[4; 4 * BLOCKBYTES];
+    let input5 = &[5; 4 * BLOCKBYTES];
+    let input6 = &[6; 4 * BLOCKBYTES];
+    let input7 = &[7; 4 * BLOCKBYTES];
+    let mut params0 = Params::new();
+    params0.hash_length(23);
+    let mut params1 = Params::new();
+    params1.hash_length(24);
+    params1.last_node(true);
+    let mut params2 = Params::new();
+    params2.hash_length(25);
+    let mut params3 = Params::new();
+    params3.hash_length(26);
+    params3.last_node(true);
+    let mut params4 = Params::new();
+    params4.hash_length(27);
+    let mut params5 = Params::new();
+    params5.hash_length(28);
+    params5.last_node(true);
+    let mut params6 = Params::new();
+    params6.hash_length(29);
+    let mut params7 = Params::new();
+    params7.hash_length(30);
+    params7.last_node(true);
+    let expected0 = params0.to_state().update(input0).finalize();
+    let expected1 = params1.to_state().update(input1).finalize();
+    let expected2 = params2.to_state().update(input2).finalize();
+    let expected3 = params3.to_state().update(input3).finalize();
+    let expected4 = params4.to_state().update(input4).finalize();
+    let expected5 = params5.to_state().update(input5).finalize();
+    let expected6 = params6.to_state().update(input6).finalize();
+    let expected7 = params7.to_state().update(input7).finalize();
+    let hashes = hash8(
+        &params0, &params1, &params2, &params3, &params4, &params5, &params6, &params7, input0,
+        input1, input2, input3, input4, input5, input6, input7,
+    );
+    assert_eq!(expected0, hashes[0]);
+    assert_eq!(expected1, hashes[1]);
+    assert_eq!(expected2, hashes[2]);
+    assert_eq!(expected3, hashes[3]);
+    assert_eq!(expected4, hashes[4]);
+    assert_eq!(expected5, hashes[5]);
+    assert_eq!(expected6, hashes[6]);
+    assert_eq!(expected7, hashes[7]);
+}
