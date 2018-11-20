@@ -11,6 +11,13 @@ const BLOCK: &[u8; BLOCKBYTES] = &[0; BLOCKBYTES];
 const MB: &[u8; 1_000_000] = &[0; 1_000_000];
 
 #[bench]
+fn bench_blake2s_sse2_compress(b: &mut Bencher) {
+    b.bytes = BLOCK.len() as u64;
+    let mut h = [0; 8];
+    b.iter(|| unsafe { benchmarks::compress_sse2(&mut h, BLOCK, 0, 0, 0) });
+}
+
+#[bench]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 fn bench_blake2s_avx2_compress8(b: &mut Bencher) {
     if !is_x86_feature_detected!("avx2") {

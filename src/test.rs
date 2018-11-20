@@ -109,6 +109,15 @@ fn test_all_compression_impls() {
     ];
     assert_eq!(expected_8, compress_eight(portable::compress8));
 
+    // If we're on an SSE2 platform, test the SSE2 implementation.
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[cfg(feature = "std")]
+    {
+        if is_x86_feature_detected!("sse2") {
+            assert_eq!(expected_1, compress_one(sse2::compress));
+        }
+    }
+
     // If we're on an AVX2 platform, test the AVX2 implementation.
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[cfg(feature = "std")]
