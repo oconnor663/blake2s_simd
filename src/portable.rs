@@ -157,6 +157,21 @@ pub fn compress8(
     compress(h7, msg7, count7, lastblock7, lastnode7);
 }
 
+pub fn hash4_exact(
+    params: &Params,
+    input0: &[u8],
+    input1: &[u8],
+    input2: &[u8],
+    input3: &[u8],
+) -> [Hash; 4] {
+    [
+        params.to_state().update(input0).finalize(),
+        params.to_state().update(input1).finalize(),
+        params.to_state().update(input2).finalize(),
+        params.to_state().update(input3).finalize(),
+    ]
+}
+
 pub fn hash8_exact(
     params: &Params,
     input0: &[u8],

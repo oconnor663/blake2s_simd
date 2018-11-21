@@ -103,6 +103,9 @@ type Compress8Fn = unsafe fn(
     lastnode6: u32,
     lastnode7: u32,
 );
+type Hash4ExactFn =
+    unsafe fn(params: &Params, input0: &[u8], input1: &[u8], input2: &[u8], input3: &[u8])
+        -> [Hash; 4];
 type Hash8ExactFn = unsafe fn(
     params: &Params,
     input0: &[u8],
@@ -731,6 +734,28 @@ pub fn finalize8(
     ]
 }
 
+pub fn hash4_exact(
+    // TODO: Separate params for each input.
+    params: &Params,
+    input0: &[u8],
+    input1: &[u8],
+    input2: &[u8],
+    input3: &[u8],
+) -> [Hash; 4] {
+    // These asserts are safety invariants for the AVX2 implementation.
+    let len = input0.len();
+    let same_length = (input1.len() == len) && (input2.len() == len) && (input3.len() == len);
+    let even_length = len % BLOCKBYTES == 0;
+    let nonempty = len != 0;
+    assert!(
+        same_length && even_length && nonempty,
+        "invalid hash8_exact inputs"
+    );
+
+    let hash4_exact_fn = default_compress_impl().3;
+    unsafe { hash4_exact_fn(params, input0, input1, input2, input3) }
+}
+
 pub fn hash8_exact(
     // TODO: Separate params for each input.
     params: &Params,
@@ -770,14 +795,19 @@ pub fn hash8_exact(
 // Safety: The unsafe blocks above rely on this function to never return avx2::compress except on
 // platforms where it's safe to call.
 #[allow(unreachable_code)]
-fn default_compress_impl() -> (CompressFn, Compress8Fn, Hash8ExactFn) {
+fn default_compress_impl() -> (CompressFn, Compress8Fn, Hash8ExactFn, Hash4ExactFn) {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     {
         #[cfg(feature = "std")]
         {
             if is_x86_feature_detected!("avx2") {
                 // Note that there's no AVX2 compress implementation for BLAKE2s. Only compress8.
-                return (portable::compress, avx2::compress8, avx2::hash8_exact);
+                return (
+                    portable::compress,
+                    avx2::compress8,
+                    avx2::hash8_exact,
+                    sse2::hash4_exact,
+                );
             }
         }
     }
@@ -786,6 +816,7 @@ fn default_compress_impl() -> (CompressFn, Compress8Fn, Hash8ExactFn) {
         portable::compress,
         portable::compress8,
         portable::hash8_exact,
+        portable::hash4_exact,
     )
 }
 
@@ -797,6 +828,8 @@ pub mod benchmarks {
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     pub use crate::sse2::compress as compress_sse2;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    pub use crate::sse2::compress4_transposed as compress4_transposed_sse2;
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     pub use crate::avx2::compress8 as compress8_avx2;

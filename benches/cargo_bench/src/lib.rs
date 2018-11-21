@@ -51,6 +51,40 @@ fn bench_blake2s_avx2_compress8(b: &mut Bencher) {
 
 #[bench]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn bench_blake2s_sse2_compress4_transposed(b: &mut Bencher) {
+    if !is_x86_feature_detected!("sse2") {
+        return;
+    }
+    b.bytes = BLOCK.len() as u64 * 4;
+    unsafe {
+        let mut h_vecs = mem::zeroed();
+        let msg1 = [0; BLOCKBYTES];
+        let msg2 = [0; BLOCKBYTES];
+        let msg3 = [0; BLOCKBYTES];
+        let msg4 = [0; BLOCKBYTES];
+        let count_low = mem::zeroed();
+        let count_high = mem::zeroed();
+        let lastblock = mem::zeroed();
+        let lastnode = mem::zeroed();
+        b.iter(|| {
+            benchmarks::compress4_transposed_sse2(
+                &mut h_vecs,
+                &msg1,
+                &msg2,
+                &msg3,
+                &msg4,
+                count_low,
+                count_high,
+                lastblock,
+                lastnode,
+            );
+            test::black_box(&mut h_vecs);
+        });
+    }
+}
+
+#[bench]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 fn bench_blake2s_avx2_compress8_transposed(b: &mut Bencher) {
     if !is_x86_feature_detected!("avx2") {
         return;
@@ -195,6 +229,27 @@ fn bench_blake2s_update8_one_block(b: &mut Bencher) {
 fn bench_blake2s_update8_one_mb(b: &mut Bencher) {
     b.bytes = 8 * MB.len() as u64;
     b.iter(|| do_update8(MB));
+}
+
+#[bench]
+fn bench_blake2s_hash4_one_block(b: &mut Bencher) {
+    b.bytes = 4 * BLOCKBYTES as u64;
+    let buf = vec![1; BLOCKBYTES];
+    b.iter(|| hash4_exact(&Params::new(), &buf, &buf, &buf, &buf));
+}
+
+#[bench]
+fn bench_blake2s_hash4_4096(b: &mut Bencher) {
+    b.bytes = 4 * 4096 as u64;
+    let buf = vec![1; 4096];
+    b.iter(|| hash4_exact(&Params::new(), &buf, &buf, &buf, &buf));
+}
+
+#[bench]
+fn bench_blake2s_hash4_one_mb(b: &mut Bencher) {
+    b.bytes = 4 * (1 << 20);
+    let buf = vec![1; 1 << 20];
+    b.iter(|| hash4_exact(&Params::new(), &buf, &buf, &buf, &buf));
 }
 
 #[bench]
