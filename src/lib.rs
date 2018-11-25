@@ -19,7 +19,7 @@ use core::fmt;
 mod avx2;
 mod portable;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-mod sse2;
+mod sse41;
 
 pub mod blake2sp;
 
@@ -806,7 +806,7 @@ fn default_compress_impl() -> (CompressFn, Compress8Fn, Hash8ExactFn, Hash4Exact
                     portable::compress,
                     avx2::compress8,
                     avx2::hash8_exact,
-                    sse2::hash4_exact,
+                    sse41::hash4_exact,
                 );
             }
         }
@@ -827,9 +827,9 @@ pub mod benchmarks {
     pub use crate::portable::compress8 as compress8_portable;
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    pub use crate::sse2::compress as compress_sse2;
+    pub use crate::sse41::compress as compress_sse41;
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    pub use crate::sse2::compress4_transposed as compress4_transposed_sse2;
+    pub use crate::sse41::compress4_transposed as compress4_transposed_sse41;
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     pub use crate::avx2::compress8 as compress8_avx2;
