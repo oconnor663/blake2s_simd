@@ -124,6 +124,7 @@ unsafe fn undiagonalize(row2: &mut __m128i, row3: &mut __m128i, row4: &mut __m12
 }
 
 // TODO: Try SSE4.1 shuffle-based loading.
+#[inline(always)]
 unsafe fn load_msg_words(
     msg: &Block,
     round: usize,
