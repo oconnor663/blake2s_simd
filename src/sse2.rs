@@ -123,7 +123,7 @@ unsafe fn undiagonalize(row2: &mut __m128i, row3: &mut __m128i, row4: &mut __m12
     *row2 = _mm_shuffle_epi32(*row2, _MM_SHUFFLE!(2, 1, 0, 3));
 }
 
-// TODO: Try SSE4.1 shuffle-based loading.
+// NOTE: In my testing, SSE4.1 shuffle-based loading is actually slightly slower.
 #[inline(always)]
 unsafe fn load_msg_words(
     msg: &Block,
