@@ -91,15 +91,15 @@ fn bench_blake2s_avx2_compress8_transposed(b: &mut Bencher) {
     }
     b.bytes = BLOCK.len() as u64 * 8;
     unsafe {
-        let mut h_vecs = mem::zeroed();
-        let msg1 = [0; BLOCKBYTES];
-        let msg2 = [0; BLOCKBYTES];
-        let msg3 = [0; BLOCKBYTES];
-        let msg4 = [0; BLOCKBYTES];
-        let msg5 = [0; BLOCKBYTES];
-        let msg6 = [0; BLOCKBYTES];
-        let msg7 = [0; BLOCKBYTES];
-        let msg8 = [0; BLOCKBYTES];
+        let mut h_vecs = [[1; 8]; 8];
+        let msg1 = [2; BLOCKBYTES];
+        let msg2 = [3; BLOCKBYTES];
+        let msg3 = [4; BLOCKBYTES];
+        let msg4 = [5; BLOCKBYTES];
+        let msg5 = [6; BLOCKBYTES];
+        let msg6 = [7; BLOCKBYTES];
+        let msg7 = [8; BLOCKBYTES];
+        let msg8 = [9; BLOCKBYTES];
         let count_low = mem::zeroed();
         let count_high = mem::zeroed();
         let lastblock = mem::zeroed();

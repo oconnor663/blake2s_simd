@@ -14,6 +14,16 @@ use crate::IV;
 use crate::SIGMA;
 
 #[inline(always)]
+unsafe fn loadu(p: *const u32) -> __m256i {
+    _mm256_loadu_si256(p as *const __m256i)
+}
+
+#[inline(always)]
+unsafe fn storeu(p: *mut u32, a: __m256i) {
+    _mm256_storeu_si256(p as *mut __m256i, a)
+}
+
+#[inline(always)]
 unsafe fn add(a: __m256i, b: __m256i) -> __m256i {
     _mm256_add_epi32(a, b)
 }
@@ -239,14 +249,14 @@ pub unsafe fn compress8(
     lastnode7: u32,
 ) {
     let mut h_vecs = transpose_vecs(
-        _mm256_loadu_si256(h0 as *const StateWords as *const __m256i),
-        _mm256_loadu_si256(h1 as *const StateWords as *const __m256i),
-        _mm256_loadu_si256(h2 as *const StateWords as *const __m256i),
-        _mm256_loadu_si256(h3 as *const StateWords as *const __m256i),
-        _mm256_loadu_si256(h4 as *const StateWords as *const __m256i),
-        _mm256_loadu_si256(h5 as *const StateWords as *const __m256i),
-        _mm256_loadu_si256(h6 as *const StateWords as *const __m256i),
-        _mm256_loadu_si256(h7 as *const StateWords as *const __m256i),
+        loadu(h0.as_ptr()),
+        loadu(h1.as_ptr()),
+        loadu(h2.as_ptr()),
+        loadu(h3.as_ptr()),
+        loadu(h4.as_ptr()),
+        loadu(h5.as_ptr()),
+        loadu(h6.as_ptr()),
+        loadu(h7.as_ptr()),
     );
     let count_low = load_256_from_8xu32(
         count0 as u32,
@@ -290,7 +300,7 @@ pub unsafe fn compress8(
     );
 
     compress8_transposed_inline(
-        &mut h_vecs,
+        h_vecs.as_mut_ptr() as *mut u32,
         msg0,
         msg1,
         msg2,
@@ -511,7 +521,7 @@ pub unsafe fn load_msg_vecs_interleave(
 
 #[target_feature(enable = "avx2")]
 pub unsafe fn compress8_transposed(
-    h_vecs: &mut [__m256i; 8],
+    h_vecs: &mut [[u32; 8]; 8],
     msg0: &Block,
     msg1: &Block,
     msg2: &Block,
@@ -526,14 +536,25 @@ pub unsafe fn compress8_transposed(
     lastnode: __m256i,
 ) {
     compress8_transposed_inline(
-        h_vecs, msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7, count_low, count_high, lastblock,
+        h_vecs[0].as_mut_ptr(),
+        msg0,
+        msg1,
+        msg2,
+        msg3,
+        msg4,
+        msg5,
+        msg6,
+        msg7,
+        count_low,
+        count_high,
+        lastblock,
         lastnode,
     );
 }
 
 #[inline(always)]
 unsafe fn compress8_transposed_inline(
-    h_vecs: &mut [__m256i; 8],
+    h_vecs: *mut u32,
     msg0: &Block,
     msg1: &Block,
     msg2: &Block,
@@ -547,15 +568,26 @@ unsafe fn compress8_transposed_inline(
     lastblock: __m256i,
     lastnode: __m256i,
 ) {
+    let h_orig = [
+        loadu(h_vecs.add(0 * 8)),
+        loadu(h_vecs.add(1 * 8)),
+        loadu(h_vecs.add(2 * 8)),
+        loadu(h_vecs.add(3 * 8)),
+        loadu(h_vecs.add(4 * 8)),
+        loadu(h_vecs.add(5 * 8)),
+        loadu(h_vecs.add(6 * 8)),
+        loadu(h_vecs.add(7 * 8)),
+    ];
+
     let mut v = [
-        h_vecs[0],
-        h_vecs[1],
-        h_vecs[2],
-        h_vecs[3],
-        h_vecs[4],
-        h_vecs[5],
-        h_vecs[6],
-        h_vecs[7],
+        h_orig[0],
+        h_orig[1],
+        h_orig[2],
+        h_orig[3],
+        h_orig[4],
+        h_orig[5],
+        h_orig[6],
+        h_orig[7],
         load_256_from_u32(IV[0]),
         load_256_from_u32(IV[1]),
         load_256_from_u32(IV[2]),
@@ -579,14 +611,14 @@ unsafe fn compress8_transposed_inline(
     blake2s_round_8x(&mut v, &msg_vecs, 8);
     blake2s_round_8x(&mut v, &msg_vecs, 9);
 
-    h_vecs[0] = xor(xor(h_vecs[0], v[0]), v[8]);
-    h_vecs[1] = xor(xor(h_vecs[1], v[1]), v[9]);
-    h_vecs[2] = xor(xor(h_vecs[2], v[2]), v[10]);
-    h_vecs[3] = xor(xor(h_vecs[3], v[3]), v[11]);
-    h_vecs[4] = xor(xor(h_vecs[4], v[4]), v[12]);
-    h_vecs[5] = xor(xor(h_vecs[5], v[5]), v[13]);
-    h_vecs[6] = xor(xor(h_vecs[6], v[6]), v[14]);
-    h_vecs[7] = xor(xor(h_vecs[7], v[7]), v[15]);
+    storeu(h_vecs.add(0 * 8), xor(xor(h_orig[0], v[0]), v[8]));
+    storeu(h_vecs.add(1 * 8), xor(xor(h_orig[1], v[1]), v[9]));
+    storeu(h_vecs.add(2 * 8), xor(xor(h_orig[2], v[2]), v[10]));
+    storeu(h_vecs.add(3 * 8), xor(xor(h_orig[3], v[3]), v[11]));
+    storeu(h_vecs.add(4 * 8), xor(xor(h_orig[4], v[4]), v[12]));
+    storeu(h_vecs.add(5 * 8), xor(xor(h_orig[5], v[5]), v[13]));
+    storeu(h_vecs.add(6 * 8), xor(xor(h_orig[6], v[6]), v[14]));
+    storeu(h_vecs.add(7 * 8), xor(xor(h_orig[7], v[7]), v[15]));
 }
 
 #[inline(always)]
@@ -688,7 +720,7 @@ pub unsafe fn hash8_exact(
             0
         });
         compress8_transposed_inline(
-            &mut h_vecs,
+            h_vecs.as_mut_ptr() as *mut u32,
             msg0,
             msg1,
             msg2,
