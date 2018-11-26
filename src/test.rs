@@ -14,12 +14,19 @@ const BLOCK_OF_SIXES: &str = "fc4daaafdd1111282445d562226bb98308b1b2682b66df8785
 const BLOCK_OF_SEVENS: &str = "e0110d7690b3be39f4d06b37d3ab5352f3a6cbdccf03ae409d0719c88a81c648";
 const BLOCK_OF_EIGHTS: &str = "d9f493e092e69be49af15f25fdbc26c62b62e036b361b4431d33c7236fdeb134";
 
+// [0, 1, 2, ..., 63]
+const COUNTER_BLOCK_HASH: &str = "56f34e8b96557e90c1f24b52d0c89d51086acf1b00f634cf1dde9233b8eaaa3e";
+
 fn compress_one(compress_fn: CompressFn) -> HexString {
+    let mut counter_block = [0; BLOCKBYTES];
+    for i in 0..64 {
+        counter_block[i] = i as u8;
+    }
     let mut state = State::new();
     // Normally we'd have to be super careful to avoid passing the AVX2 impl here on non-AVX2
     // platforms, but this is test code so no biggie.
     unsafe {
-        compress_fn(&mut state.h, &[0; BLOCKBYTES], BLOCKBYTES as u64, !0, 0);
+        compress_fn(&mut state.h, &counter_block, BLOCKBYTES as u64, !0, 0);
     }
     bytes_to_hex(&state_words_to_bytes(&state.h))
 }
@@ -94,7 +101,7 @@ fn compress_eight(compress_fn: Compress8Fn) -> [HexString; 8] {
 #[test]
 fn test_all_compression_impls() {
     // Test the portable implementation.
-    let expected_1 = HexString::from(ONE_BLOCK_HASH).unwrap();
+    let expected_1 = HexString::from(COUNTER_BLOCK_HASH).unwrap();
     assert_eq!(expected_1, compress_one(portable::compress));
 
     let expected_8 = [
