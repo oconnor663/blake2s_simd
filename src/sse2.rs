@@ -3,7 +3,6 @@ use core::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::*;
 
-use core::ptr;
 use crate::{Block, Hash, Params, StateWords, BLOCKBYTES, IV, OUTBYTES, SIGMA};
 
 #[inline(always)]
@@ -123,22 +122,25 @@ unsafe fn undiagonalize(row2: &mut __m128i, row3: &mut __m128i, row4: &mut __m12
     *row2 = _mm_shuffle_epi32(*row2, _MM_SHUFFLE!(2, 1, 0, 3));
 }
 
-// NOTE: In my testing, SSE4.1 shuffle-based loading is actually slightly slower.
+const INDICES: [[i32; 16]; 10] = [
+    [0, 2, 4, 6, 1, 3, 5, 7, 8, 10, 12, 14, 9, 11, 13, 15],
+    [14, 4, 9, 13, 10, 8, 15, 6, 1, 0, 11, 5, 12, 2, 7, 3],
+    [11, 12, 5, 15, 8, 0, 2, 13, 10, 3, 7, 9, 14, 6, 1, 4],
+    [7, 3, 13, 11, 9, 1, 12, 14, 2, 5, 4, 15, 6, 10, 0, 8],
+    [9, 5, 2, 10, 0, 7, 4, 15, 14, 11, 6, 3, 1, 12, 8, 13],
+    [2, 6, 0, 8, 12, 10, 11, 3, 4, 7, 15, 1, 13, 5, 14, 9],
+    [12, 1, 14, 4, 5, 15, 13, 10, 0, 6, 9, 8, 7, 3, 2, 11],
+    [13, 7, 12, 3, 11, 14, 1, 9, 5, 15, 8, 2, 0, 4, 6, 10],
+    [6, 14, 11, 0, 15, 9, 3, 8, 12, 13, 1, 10, 2, 7, 4, 5],
+    [10, 8, 7, 1, 2, 4, 6, 5, 15, 9, 3, 13, 11, 14, 12, 0],
+];
+
 #[inline(always)]
-unsafe fn load_msg_words(
-    msg: &Block,
-    round: usize,
-    i1: usize,
-    i2: usize,
-    i3: usize,
-    i4: usize,
-) -> __m128i {
-    let s = SIGMA[round];
-    setr(
-        ptr::read_unaligned(msg.as_ptr().add(s[i1] as usize * 4) as *const u8 as *const u32),
-        ptr::read_unaligned(msg.as_ptr().add(s[i2] as usize * 4) as *const u8 as *const u32),
-        ptr::read_unaligned(msg.as_ptr().add(s[i3] as usize * 4) as *const u8 as *const u32),
-        ptr::read_unaligned(msg.as_ptr().add(s[i4] as usize * 4) as *const u8 as *const u32),
+unsafe fn gather_msg_words(msg: &Block, round: usize, quarter_round: usize) -> __m128i {
+    _mm_i32gather_epi32(
+        msg.as_ptr() as *const i32,
+        _mm_loadu_si128(INDICES[round].as_ptr().add(4 * quarter_round) as *const __m128i),
+        4,
     )
 }
 
@@ -151,19 +153,19 @@ unsafe fn round(
     msg: &Block,
     round: usize,
 ) {
-    let m = load_msg_words(msg, round, 0, 2, 4, 6);
+    let m = gather_msg_words(msg, round, 0);
     g1(row1, row2, row3, row4, m);
-    let m = load_msg_words(msg, round, 1, 3, 5, 7);
+    let m = gather_msg_words(msg, round, 1);
     g2(row1, row2, row3, row4, m);
     diagonalize(row2, row3, row4);
-    let m = load_msg_words(msg, round, 8, 10, 12, 14);
+    let m = gather_msg_words(msg, round, 2);
     g1(row1, row2, row3, row4, m);
-    let m = load_msg_words(msg, round, 9, 11, 13, 15);
+    let m = gather_msg_words(msg, round, 3);
     g2(row1, row2, row3, row4, m);
     undiagonalize(row2, row3, row4);
 }
 
-#[target_feature(enable = "sse2")]
+#[target_feature(enable = "avx2")]
 pub unsafe fn compress(h: &mut StateWords, msg: &Block, count: u64, lastblock: u32, lastnode: u32) {
     let mut row1 = loadu(&h[0]);
     let mut row2 = loadu(&h[4]);
@@ -173,6 +175,9 @@ pub unsafe fn compress(h: &mut StateWords, msg: &Block, count: u64, lastblock: u
         setr(count as u32, (count >> 32) as u32, lastblock, lastnode),
     );
 
+    // Note that the BLAKE2b version of this gather-based round loop suffers
+    // terrible from unrolling, like -25% throughput, but this BLAKE2s
+    // counterpart seems to benefit slightly.
     round(&mut row1, &mut row2, &mut row3, &mut row4, msg, 0);
     round(&mut row1, &mut row2, &mut row3, &mut row4, msg, 1);
     round(&mut row1, &mut row2, &mut row3, &mut row4, msg, 2);
