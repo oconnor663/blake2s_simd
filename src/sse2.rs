@@ -52,9 +52,10 @@ unsafe fn rot7(a: __m128i) -> __m128i {
 
 #[inline(always)]
 unsafe fn rot8(a: __m128i) -> __m128i {
-    // NOTE: For SSSE3 or higher this could be implemented with
-    // _mm_shuffle_epi8, but on my laptop that's actually slightly slower.
-    xor(_mm_srli_epi32(a, 8), _mm_slli_epi32(a, 32 - 8))
+    _mm_shuffle_epi8(
+        a,
+        _mm_set_epi8(12, 15, 14, 13, 8, 11, 10, 9, 4, 7, 6, 5, 0, 3, 2, 1),
+    )
 }
 
 #[inline(always)]
@@ -64,9 +65,10 @@ unsafe fn rot12(a: __m128i) -> __m128i {
 
 #[inline(always)]
 unsafe fn rot16(a: __m128i) -> __m128i {
-    // NOTE: For SSSE3 or higher this could be implemented with
-    // _mm_shuffle_epi8, but on my laptop that's actually slightly slower.
-    xor(_mm_srli_epi32(a, 16), _mm_slli_epi32(a, 32 - 16))
+    _mm_shuffle_epi8(
+        a,
+        _mm_set_epi8(13, 12, 15, 14, 9, 8, 11, 10, 5, 4, 7, 6, 1, 0, 3, 2),
+    )
 }
 
 #[inline(always)]
@@ -635,7 +637,7 @@ unsafe fn compress4_transposed_inline(
 }
 
 // Currently just for benchmarking.
-#[target_feature(enable = "sse2")]
+#[target_feature(enable = "sse4.1")]
 pub unsafe fn compress4_transposed(
     h_vecs: &mut [__m128i; 8],
     msg0: &Block,
@@ -691,7 +693,7 @@ unsafe fn export_hashes(h_vecs: &[__m128i; 8], hash_length: u8) -> [Hash; 4] {
     ]
 }
 
-#[target_feature(enable = "sse2")]
+#[target_feature(enable = "sse4.1")]
 pub unsafe fn hash4_exact(
     params: &Params,
     input0: &[u8],
