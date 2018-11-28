@@ -397,11 +397,12 @@ unsafe fn transpose_vecs(
 #[cfg(test)]
 #[test]
 fn test_transpose_vecs() {
-    unsafe fn cast_out(a: __m128i) -> [u32; 4] {
-        core::mem::transmute(a)
-    }
+    #[target_feature(enable = "sse4.1")]
+    unsafe fn inner() {
+        unsafe fn cast_out(a: __m128i) -> [u32; 4] {
+            core::mem::transmute(a)
+        }
 
-    unsafe {
         let vec_a = setr(0x00, 0x01, 0x02, 0x03);
         let vec_b = setr(0x10, 0x11, 0x12, 0x13);
         let vec_c = setr(0x20, 0x21, 0x22, 0x23);
@@ -425,6 +426,15 @@ fn test_transpose_vecs() {
         assert_eq!(cast_out(vec_b), cast_out(out2_b));
         assert_eq!(cast_out(vec_c), cast_out(out2_c));
         assert_eq!(cast_out(vec_d), cast_out(out2_d));
+    }
+
+    #[cfg(feature = "std")]
+    {
+        if is_x86_feature_detected!("sse4.1") {
+            unsafe {
+                inner();
+            }
+        }
     }
 }
 

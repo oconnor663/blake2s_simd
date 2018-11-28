@@ -344,7 +344,8 @@ fn cast_out(x: __m256i) -> [u32; 8] {
 #[cfg(test)]
 #[test]
 fn test_interleave128() {
-    unsafe {
+    #[target_feature(enable = "avx2")]
+    unsafe fn inner() {
         let a = load_256_from_8xu32(10, 11, 12, 13, 14, 15, 16, 17);
         let b = load_256_from_8xu32(20, 21, 22, 23, 24, 25, 26, 27);
 
@@ -355,6 +356,15 @@ fn test_interleave128() {
 
         assert_eq!(cast_out(expected_a), cast_out(out_a));
         assert_eq!(cast_out(expected_b), cast_out(out_b));
+    }
+
+    #[cfg(feature = "std")]
+    {
+        if is_x86_feature_detected!("avx2") {
+            unsafe {
+                inner();
+            }
+        }
     }
 }
 
@@ -369,7 +379,8 @@ unsafe fn load_2x256(msg: &[u8; BLOCKBYTES]) -> (__m256i, __m256i) {
 #[cfg(test)]
 #[test]
 fn test_load_2x256() {
-    unsafe {
+    #[target_feature(enable = "avx2")]
+    unsafe fn inner() {
         let input: [u64; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
         let input_bytes: [u8; BLOCKBYTES] = mem::transmute(input);
         let (out_a, out_b) = load_2x256(&input_bytes);
@@ -379,6 +390,15 @@ fn test_load_2x256() {
 
         assert_eq!(cast_out(expected_a), cast_out(out_a));
         assert_eq!(cast_out(expected_b), cast_out(out_b));
+    }
+
+    #[cfg(feature = "std")]
+    {
+        if is_x86_feature_detected!("avx2") {
+            unsafe {
+                inner();
+            }
+        }
     }
 }
 
@@ -427,7 +447,8 @@ unsafe fn transpose_vecs(
 #[cfg(test)]
 #[test]
 fn test_transpose_vecs() {
-    unsafe {
+    #[target_feature(enable = "avx2")]
+    unsafe fn inner() {
         let vec_a = load_256_from_8xu32(0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07);
         let vec_b = load_256_from_8xu32(0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17);
         let vec_c = load_256_from_8xu32(0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27);
@@ -469,6 +490,15 @@ fn test_transpose_vecs() {
         assert_eq!(cast_out(vec_f), cast_out(out2_f));
         assert_eq!(cast_out(vec_g), cast_out(out2_g));
         assert_eq!(cast_out(vec_h), cast_out(out2_h));
+    }
+
+    #[cfg(feature = "std")]
+    {
+        if is_x86_feature_detected!("avx2") {
+            unsafe {
+                inner();
+            }
+        }
     }
 }
 
