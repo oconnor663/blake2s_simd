@@ -88,6 +88,10 @@ unsafe fn load_256_from_8xu32(
     )
 }
 
+// NOTE: Writing out the whole round explicitly in this way gives better
+// performance than we get if we factor out the G function. Perhaps the
+// compiler doesn't notice that it can group all the adds together like we do
+// here, even when G is inlined.
 #[inline(always)]
 unsafe fn blake2s_round_8x(v: &mut [__m256i; 16], m: &[__m256i; 16], r: usize) {
     v[0] = add(v[0], m[SIGMA[r][0] as usize]);
