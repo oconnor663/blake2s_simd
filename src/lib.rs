@@ -836,6 +836,11 @@ pub mod benchmarks {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     pub use crate::avx2::compress8_transposed as compress8_transposed_avx2;
 
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    pub use crate::avx2::compress8_join_raw_permuting;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    pub use crate::avx2::compress8_join_raw_transposing;
+
     // Safety: The portable implementation should be safe to call on any platform.
     pub fn force_portable(state: &mut crate::State) {
         state.compress_fn = compress_portable;

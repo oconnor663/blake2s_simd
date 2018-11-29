@@ -126,6 +126,66 @@ fn bench_blake2s_avx2_compress8_transposed(b: &mut Bencher) {
 }
 
 #[bench]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn bench_blake2s_avx2_compress8_join_raw_transposing(b: &mut Bencher) {
+    if !is_x86_feature_detected!("avx2") {
+        return;
+    }
+    b.bytes = BLOCK.len() as u64 * 8;
+    unsafe {
+        let mut h_vecs = mem::transmute([[1u32; 8]; 8]);
+        let left_raw = mem::transmute([[2u32; 8]; 8]);
+        let right_raw = mem::transmute([[3u32; 8]; 8]);
+        let count_low = mem::zeroed();
+        let count_high = mem::zeroed();
+        let lastblock = mem::zeroed();
+        let lastnode = mem::zeroed();
+        b.iter(|| {
+            benchmarks::compress8_join_raw_transposing(
+                &mut h_vecs,
+                &left_raw,
+                &right_raw,
+                count_low,
+                count_high,
+                lastblock,
+                lastnode,
+            );
+            test::black_box(&mut h_vecs);
+        });
+    }
+}
+
+#[bench]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn bench_blake2s_avx2_compress8_join_raw_permuting(b: &mut Bencher) {
+    if !is_x86_feature_detected!("avx2") {
+        return;
+    }
+    b.bytes = BLOCK.len() as u64 * 8;
+    unsafe {
+        let mut h_vecs = mem::transmute([[1u32; 8]; 8]);
+        let left_raw = mem::transmute([[2u32; 8]; 8]);
+        let right_raw = mem::transmute([[3u32; 8]; 8]);
+        let count_low = mem::zeroed();
+        let count_high = mem::zeroed();
+        let lastblock = mem::zeroed();
+        let lastnode = mem::zeroed();
+        b.iter(|| {
+            benchmarks::compress8_join_raw_permuting(
+                &mut h_vecs,
+                &left_raw,
+                &right_raw,
+                count_low,
+                count_high,
+                lastblock,
+                lastnode,
+            );
+            test::black_box(&mut h_vecs);
+        });
+    }
+}
+
+#[bench]
 fn bench_blake2s_portable_compress(b: &mut Bencher) {
     b.bytes = BLOCK.len() as u64;
     let mut h = [0; 8];

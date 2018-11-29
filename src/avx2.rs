@@ -592,6 +592,176 @@ pub unsafe fn compress8_transposed(
     storeu(states[7].as_mut_ptr(), h_vecs[7]);
 }
 
+#[target_feature(enable = "avx2")]
+pub unsafe fn compress8_join_raw_transposing(
+    h_vecs: &mut [__m256i; 8],
+    left_raw: &[__m256i; 8],
+    right_raw: &[__m256i; 8],
+    count_low: __m256i,
+    count_high: __m256i,
+    lastblock: __m256i,
+    lastnode: __m256i,
+) {
+    let left_standard = transpose_vecs(*left_raw);
+    let right_standard = transpose_vecs(*right_raw);
+
+    let msg_vecs_lo = transpose_vecs([
+        left_standard[0],
+        left_standard[2],
+        left_standard[4],
+        left_standard[6],
+        right_standard[0],
+        right_standard[2],
+        right_standard[4],
+        right_standard[6],
+    ]);
+    let msg_vecs_hi = transpose_vecs([
+        left_standard[1],
+        left_standard[3],
+        left_standard[5],
+        left_standard[7],
+        right_standard[1],
+        right_standard[3],
+        right_standard[5],
+        right_standard[7],
+    ]);
+
+    let msg_vecs = [
+        msg_vecs_lo[0],
+        msg_vecs_lo[1],
+        msg_vecs_lo[2],
+        msg_vecs_lo[3],
+        msg_vecs_lo[4],
+        msg_vecs_lo[5],
+        msg_vecs_lo[6],
+        msg_vecs_lo[7],
+        msg_vecs_hi[0],
+        msg_vecs_hi[1],
+        msg_vecs_hi[2],
+        msg_vecs_hi[3],
+        msg_vecs_hi[4],
+        msg_vecs_hi[5],
+        msg_vecs_hi[6],
+        msg_vecs_hi[7],
+    ];
+
+    compress8_transposed_inline(
+        h_vecs, &msg_vecs, count_low, count_high, lastblock, lastnode,
+    );
+}
+
+#[target_feature(enable = "avx2")]
+pub unsafe fn compress8_join_raw_permuting(
+    h_vecs: &mut [__m256i; 8],
+    left_raw: &[__m256i; 8],
+    right_raw: &[__m256i; 8],
+    count_low: __m256i,
+    count_high: __m256i,
+    lastblock: __m256i,
+    lastnode: __m256i,
+) {
+    // Get the even columns to the low lane and the odd columns to the high lane.
+    let permutation = _mm256_setr_epi32(0, 2, 4, 6, 1, 3, 5, 7);
+
+    let (msg_0, msg_8) = interleave128(
+        _mm256_permutevar8x32_epi32(left_raw[0], permutation),
+        _mm256_permutevar8x32_epi32(right_raw[0], permutation),
+    );
+    let (msg_1, msg_9) = interleave128(
+        _mm256_permutevar8x32_epi32(left_raw[1], permutation),
+        _mm256_permutevar8x32_epi32(right_raw[1], permutation),
+    );
+    let (msg_2, msg_10) = interleave128(
+        _mm256_permutevar8x32_epi32(left_raw[2], permutation),
+        _mm256_permutevar8x32_epi32(right_raw[2], permutation),
+    );
+    let (msg_3, msg_11) = interleave128(
+        _mm256_permutevar8x32_epi32(left_raw[3], permutation),
+        _mm256_permutevar8x32_epi32(right_raw[3], permutation),
+    );
+    let (msg_4, msg_12) = interleave128(
+        _mm256_permutevar8x32_epi32(left_raw[4], permutation),
+        _mm256_permutevar8x32_epi32(right_raw[4], permutation),
+    );
+    let (msg_5, msg_13) = interleave128(
+        _mm256_permutevar8x32_epi32(left_raw[5], permutation),
+        _mm256_permutevar8x32_epi32(right_raw[5], permutation),
+    );
+    let (msg_6, msg_14) = interleave128(
+        _mm256_permutevar8x32_epi32(left_raw[6], permutation),
+        _mm256_permutevar8x32_epi32(right_raw[6], permutation),
+    );
+    let (msg_7, msg_15) = interleave128(
+        _mm256_permutevar8x32_epi32(left_raw[7], permutation),
+        _mm256_permutevar8x32_epi32(right_raw[7], permutation),
+    );
+
+    let msg_vecs = [
+        msg_0, msg_1, msg_2, msg_3, msg_4, msg_5, msg_6, msg_7, msg_8, msg_9, msg_10, msg_11,
+        msg_12, msg_13, msg_14, msg_15,
+    ];
+
+    compress8_transposed_inline(
+        h_vecs, &msg_vecs, count_low, count_high, lastblock, lastnode,
+    );
+}
+
+#[cfg(test)]
+#[test]
+fn test_compress8_join() {
+    #[target_feature(enable = "avx2")]
+    unsafe fn inner() {
+        let mut h_bytes = [0u8; 32 * 8];
+        let mut left_raw_bytes = [0u8; 32 * 8];
+        let mut right_raw_bytes = [0u8; 32 * 8];
+        // Make the different inputs non-uniform, to avoid hiding mistakes.
+        for i in 0..h_bytes.len() {
+            h_bytes[i] = i as u8;
+            left_raw_bytes[i] = (i + 1) as u8;
+            right_raw_bytes[i] = (i + 2) as u8;
+        }
+        let h_vecs: [__m256i; 8] = mem::transmute(h_bytes);
+        let left_raw_vecs: [__m256i; 8] = mem::transmute(left_raw_bytes);
+        let right_raw_vecs: [__m256i; 8] = mem::transmute(right_raw_bytes);
+
+        let mut transposing_h = h_vecs;
+        compress8_join_raw_transposing(
+            &mut transposing_h,
+            &left_raw_vecs,
+            &right_raw_vecs,
+            _mm256_set1_epi32(1),
+            _mm256_set1_epi32(2),
+            _mm256_set1_epi32(3),
+            _mm256_set1_epi32(3),
+        );
+
+        let mut permuting_h = h_vecs;
+        compress8_join_raw_permuting(
+            &mut permuting_h,
+            &left_raw_vecs,
+            &right_raw_vecs,
+            _mm256_set1_epi32(1),
+            _mm256_set1_epi32(2),
+            _mm256_set1_epi32(3),
+            _mm256_set1_epi32(3),
+        );
+
+        // Make sure the two approaches give the same answer.
+        let transposing_words: [u32; 64] = mem::transmute(transposing_h);
+        let permuting_words: [u32; 64] = mem::transmute(permuting_h);
+        assert_eq!(&transposing_words[..], &permuting_words[..]);
+    }
+
+    #[cfg(feature = "std")]
+    {
+        if is_x86_feature_detected!("avx2") {
+            unsafe {
+                inner();
+            }
+        }
+    }
+}
+
 // This core function assumes that both the state words and the message blocks
 // have been transposed across vectors. So the first state vector contains the
 // first word of each of the 8 states, and the first message vector contains
