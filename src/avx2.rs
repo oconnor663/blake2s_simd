@@ -303,16 +303,11 @@ pub unsafe fn compress8(
         lastnode7 as u32,
     );
 
+    let msg_vecs = load_msg_vecs_interleave(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7);
+
     compress8_transposed_inline(
-        h_vecs.as_mut_ptr() as *mut u32,
-        msg0,
-        msg1,
-        msg2,
-        msg3,
-        msg4,
-        msg5,
-        msg6,
-        msg7,
+        &mut h_vecs,
+        &msg_vecs,
         count_low,
         count_high,
         lastblock,
@@ -507,7 +502,7 @@ fn test_transpose_vecs() {
 }
 
 #[inline(always)]
-pub unsafe fn load_msg_vecs_interleave(
+unsafe fn load_msg_vecs_interleave(
     msg_a: &[u8; BLOCKBYTES],
     msg_b: &[u8; BLOCKBYTES],
     msg_c: &[u8; BLOCKBYTES],
@@ -553,9 +548,12 @@ pub unsafe fn load_msg_vecs_interleave(
     ]
 }
 
+// This function assumes that the state is in transposed form, but not
+// necessarily aligned. It accepts input in the usual form of contiguous bytes,
+// and it pays the cost of transposing the input.
 #[target_feature(enable = "avx2")]
 pub unsafe fn compress8_transposed(
-    h_vecs: &mut [[u32; 8]; 8],
+    states: &mut [[u32; 8]; 8],
     msg0: &Block,
     msg1: &Block,
     msg2: &Block,
@@ -569,59 +567,62 @@ pub unsafe fn compress8_transposed(
     lastblock: __m256i,
     lastnode: __m256i,
 ) {
+    let mut h_vecs = [
+        loadu(states[0].as_ptr()),
+        loadu(states[1].as_ptr()),
+        loadu(states[2].as_ptr()),
+        loadu(states[3].as_ptr()),
+        loadu(states[4].as_ptr()),
+        loadu(states[5].as_ptr()),
+        loadu(states[6].as_ptr()),
+        loadu(states[7].as_ptr()),
+    ];
+
+    let msg_vecs = load_msg_vecs_interleave(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7);
+
     compress8_transposed_inline(
-        h_vecs[0].as_mut_ptr(),
-        msg0,
-        msg1,
-        msg2,
-        msg3,
-        msg4,
-        msg5,
-        msg6,
-        msg7,
+        &mut h_vecs,
+        &msg_vecs,
         count_low,
         count_high,
         lastblock,
         lastnode,
     );
+
+    storeu(states[0].as_mut_ptr(), h_vecs[0]);
+    storeu(states[1].as_mut_ptr(), h_vecs[1]);
+    storeu(states[2].as_mut_ptr(), h_vecs[2]);
+    storeu(states[3].as_mut_ptr(), h_vecs[3]);
+    storeu(states[4].as_mut_ptr(), h_vecs[4]);
+    storeu(states[5].as_mut_ptr(), h_vecs[5]);
+    storeu(states[6].as_mut_ptr(), h_vecs[6]);
+    storeu(states[7].as_mut_ptr(), h_vecs[7]);
 }
 
+// This core function assumes that both the state words and the message blocks
+// have been transposed across vectors. So the first state vector contains the
+// first word of each of the 8 states, and the first message vector contains
+// the first word of each of the 8 message blocks. Defining the core this way
+// allows us to keep either the state or the message in transposed form in some
+// cases, to avoid paying the cost of transposing them.
 #[inline(always)]
 unsafe fn compress8_transposed_inline(
-    h_vecs: *mut u32,
-    msg0: &Block,
-    msg1: &Block,
-    msg2: &Block,
-    msg3: &Block,
-    msg4: &Block,
-    msg5: &Block,
-    msg6: &Block,
-    msg7: &Block,
+    h_vecs: &mut [__m256i; 8],
+    msg_vecs: &[__m256i; 16],
     count_low: __m256i,
     count_high: __m256i,
     lastblock: __m256i,
     lastnode: __m256i,
 ) {
-    let h_orig = [
-        loadu(h_vecs.add(0 * 8)),
-        loadu(h_vecs.add(1 * 8)),
-        loadu(h_vecs.add(2 * 8)),
-        loadu(h_vecs.add(3 * 8)),
-        loadu(h_vecs.add(4 * 8)),
-        loadu(h_vecs.add(5 * 8)),
-        loadu(h_vecs.add(6 * 8)),
-        loadu(h_vecs.add(7 * 8)),
-    ];
-
     let mut v = [
-        h_orig[0],
-        h_orig[1],
-        h_orig[2],
-        h_orig[3],
-        h_orig[4],
-        h_orig[5],
-        h_orig[6],
-        h_orig[7],
+        h_vecs[0],
+        h_vecs[1],
+        h_vecs[2],
+        h_vecs[3],
+        h_vecs[4],
+        h_vecs[5],
+        h_vecs[6],
+        h_vecs[7],
         load_256_from_u32(IV[0]),
         load_256_from_u32(IV[1]),
         load_256_from_u32(IV[2]),
@@ -631,8 +632,6 @@ unsafe fn compress8_transposed_inline(
         xor(load_256_from_u32(IV[6]), lastblock),
         xor(load_256_from_u32(IV[7]), lastnode),
     ];
-
-    let msg_vecs = load_msg_vecs_interleave(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7);
 
     blake2s_round_8x(&mut v, &msg_vecs, 0);
     blake2s_round_8x(&mut v, &msg_vecs, 1);
@@ -645,14 +644,14 @@ unsafe fn compress8_transposed_inline(
     blake2s_round_8x(&mut v, &msg_vecs, 8);
     blake2s_round_8x(&mut v, &msg_vecs, 9);
 
-    storeu(h_vecs.add(0 * 8), xor(xor(h_orig[0], v[0]), v[8]));
-    storeu(h_vecs.add(1 * 8), xor(xor(h_orig[1], v[1]), v[9]));
-    storeu(h_vecs.add(2 * 8), xor(xor(h_orig[2], v[2]), v[10]));
-    storeu(h_vecs.add(3 * 8), xor(xor(h_orig[3], v[3]), v[11]));
-    storeu(h_vecs.add(4 * 8), xor(xor(h_orig[4], v[4]), v[12]));
-    storeu(h_vecs.add(5 * 8), xor(xor(h_orig[5], v[5]), v[13]));
-    storeu(h_vecs.add(6 * 8), xor(xor(h_orig[6], v[6]), v[14]));
-    storeu(h_vecs.add(7 * 8), xor(xor(h_orig[7], v[7]), v[15]));
+    h_vecs[0] = xor(h_vecs[0], xor(v[0], v[8]));
+    h_vecs[1] = xor(h_vecs[1], xor(v[1], v[9]));
+    h_vecs[2] = xor(h_vecs[2], xor(v[2], v[10]));
+    h_vecs[3] = xor(h_vecs[3], xor(v[3], v[11]));
+    h_vecs[4] = xor(h_vecs[4], xor(v[4], v[12]));
+    h_vecs[5] = xor(h_vecs[5], xor(v[5], v[13]));
+    h_vecs[6] = xor(h_vecs[6], xor(v[6], v[14]));
+    h_vecs[7] = xor(h_vecs[7], xor(v[7], v[15]));
 }
 
 #[inline(always)]
@@ -753,16 +752,10 @@ pub unsafe fn hash8_exact(
         } else {
             0
         });
+        let msg_vecs = load_msg_vecs_interleave(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7);
         compress8_transposed_inline(
-            h_vecs.as_mut_ptr() as *mut u32,
-            msg0,
-            msg1,
-            msg2,
-            msg3,
-            msg4,
-            msg5,
-            msg6,
-            msg7,
+            &mut h_vecs,
+            &msg_vecs,
             count_low,
             count_high,
             lastblock,
