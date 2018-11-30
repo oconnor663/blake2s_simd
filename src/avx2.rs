@@ -545,7 +545,7 @@ unsafe fn load_msg_vecs_interleave(
 // necessarily aligned. It accepts input in the usual form of contiguous bytes,
 // and it pays the cost of transposing the input.
 #[target_feature(enable = "avx2")]
-pub unsafe fn compress8_transposed(
+pub unsafe fn compress8_transposed_state(
     states: &mut [[u32; 8]; 8],
     msg0: &Block,
     msg1: &Block,
@@ -590,6 +590,18 @@ pub unsafe fn compress8_transposed(
     storeu(states[5].as_mut_ptr(), h_vecs[5]);
     storeu(states[6].as_mut_ptr(), h_vecs[6]);
     storeu(states[7].as_mut_ptr(), h_vecs[7]);
+}
+
+#[target_feature(enable = "avx2")]
+pub unsafe fn compress8_transposed_all(
+    h_vecs: &mut [__m256i; 8],
+    msg_vecs: &[__m256i; 16],
+    count_low: __m256i,
+    count_high: __m256i,
+    lastblock: __m256i,
+    lastnode: __m256i,
+) {
+    compress8_transposed_inline(h_vecs, msg_vecs, count_low, count_high, lastblock, lastnode);
 }
 
 // This core function assumes that both the state words and the message blocks
