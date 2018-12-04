@@ -252,7 +252,7 @@ pub unsafe fn compress8(
     lastnode6: u32,
     lastnode7: u32,
 ) {
-    let mut h_vecs = transpose_vecs([
+    let mut h_vecs = [
         loadu(h0.as_ptr()),
         loadu(h1.as_ptr()),
         loadu(h2.as_ptr()),
@@ -261,7 +261,9 @@ pub unsafe fn compress8(
         loadu(h5.as_ptr()),
         loadu(h6.as_ptr()),
         loadu(h7.as_ptr()),
-    ]);
+    ];
+    transpose_vecs(&mut h_vecs);
+
     let count_low = load_256_from_8xu32(
         count0 as u32,
         count1 as u32,
@@ -314,16 +316,16 @@ pub unsafe fn compress8(
         lastnode,
     );
 
-    let untransposed = transpose_vecs(h_vecs);
+    transpose_vecs(&mut h_vecs);
 
-    *h0 = mem::transmute(untransposed[0]);
-    *h1 = mem::transmute(untransposed[1]);
-    *h2 = mem::transmute(untransposed[2]);
-    *h3 = mem::transmute(untransposed[3]);
-    *h4 = mem::transmute(untransposed[4]);
-    *h5 = mem::transmute(untransposed[5]);
-    *h6 = mem::transmute(untransposed[6]);
-    *h7 = mem::transmute(untransposed[7]);
+    *h0 = mem::transmute(h_vecs[0]);
+    *h1 = mem::transmute(h_vecs[1]);
+    *h2 = mem::transmute(h_vecs[2]);
+    *h3 = mem::transmute(h_vecs[3]);
+    *h4 = mem::transmute(h_vecs[4]);
+    *h5 = mem::transmute(h_vecs[5]);
+    *h6 = mem::transmute(h_vecs[6]);
+    *h7 = mem::transmute(h_vecs[7]);
 }
 
 #[inline(always)]
@@ -401,18 +403,16 @@ fn test_load_2x256() {
 }
 
 #[inline(always)]
-unsafe fn transpose_vecs(vecs: [__m256i; 8]) -> [__m256i; 8] {
-    let [vec_a, vec_b, vec_c, vec_d, vec_e, vec_f, vec_g, vec_h] = vecs;
-
+unsafe fn transpose_vecs(vecs: &mut [__m256i; 8]) {
     // Interleave 32-bit lanes. The low unpack is lanes 00/11/44/55, and the high is 22/33/66/77.
-    let ab_0145 = _mm256_unpacklo_epi32(vec_a, vec_b);
-    let ab_2367 = _mm256_unpackhi_epi32(vec_a, vec_b);
-    let cd_0145 = _mm256_unpacklo_epi32(vec_c, vec_d);
-    let cd_2367 = _mm256_unpackhi_epi32(vec_c, vec_d);
-    let ef_0145 = _mm256_unpacklo_epi32(vec_e, vec_f);
-    let ef_2367 = _mm256_unpackhi_epi32(vec_e, vec_f);
-    let gh_0145 = _mm256_unpacklo_epi32(vec_g, vec_h);
-    let gh_2367 = _mm256_unpackhi_epi32(vec_g, vec_h);
+    let ab_0145 = _mm256_unpacklo_epi32(vecs[0], vecs[1]);
+    let ab_2367 = _mm256_unpackhi_epi32(vecs[0], vecs[1]);
+    let cd_0145 = _mm256_unpacklo_epi32(vecs[2], vecs[3]);
+    let cd_2367 = _mm256_unpackhi_epi32(vecs[2], vecs[3]);
+    let ef_0145 = _mm256_unpacklo_epi32(vecs[4], vecs[5]);
+    let ef_2367 = _mm256_unpackhi_epi32(vecs[4], vecs[5]);
+    let gh_0145 = _mm256_unpacklo_epi32(vecs[6], vecs[7]);
+    let gh_2367 = _mm256_unpackhi_epi32(vecs[6], vecs[7]);
 
     // Interleave 64-bit lates. The low unpack is lanes 00/22 and the high is 11/33.
     let abcd_04 = _mm256_unpacklo_epi64(ab_0145, cd_0145);
@@ -430,9 +430,14 @@ unsafe fn transpose_vecs(vecs: [__m256i; 8]) -> [__m256i; 8] {
     let (abcdefg_2, abcdefg_6) = interleave128(abcd_26, efgh_26);
     let (abcdefg_3, abcdefg_7) = interleave128(abcd_37, efgh_37);
 
-    [
-        abcdefg_0, abcdefg_1, abcdefg_2, abcdefg_3, abcdefg_4, abcdefg_5, abcdefg_6, abcdefg_7,
-    ]
+    vecs[0] = abcdefg_0;
+    vecs[1] = abcdefg_1;
+    vecs[2] = abcdefg_2;
+    vecs[3] = abcdefg_3;
+    vecs[4] = abcdefg_4;
+    vecs[5] = abcdefg_5;
+    vecs[6] = abcdefg_6;
+    vecs[7] = abcdefg_7;
 }
 
 #[cfg(test)]
@@ -458,7 +463,8 @@ fn test_transpose_vecs() {
         let expected_g = load_256_from_8xu32(0x06, 0x16, 0x26, 0x36, 0x46, 0x56, 0x66, 0x76);
         let expected_h = load_256_from_8xu32(0x07, 0x17, 0x27, 0x37, 0x47, 0x57, 0x67, 0x77);
 
-        let interleaved = transpose_vecs([vec_a, vec_b, vec_c, vec_d, vec_e, vec_f, vec_g, vec_h]);
+        let mut interleaved = [vec_a, vec_b, vec_c, vec_d, vec_e, vec_f, vec_g, vec_h];
+        transpose_vecs(&mut interleaved);
 
         let [out_a, out_b, out_c, out_d, out_e, out_f, out_g, out_h] = interleaved;
         assert_eq!(cast_out(expected_a), cast_out(out_a));
@@ -471,8 +477,8 @@ fn test_transpose_vecs() {
         assert_eq!(cast_out(expected_h), cast_out(out_h));
 
         // Check that interleaving again undoes the operation.
-        let deinterleaved =
-            transpose_vecs([out_a, out_b, out_c, out_d, out_e, out_f, out_g, out_h]);
+        let mut deinterleaved = [out_a, out_b, out_c, out_d, out_e, out_f, out_g, out_h];
+        transpose_vecs(&mut deinterleaved);
         let [out2_a, out2_b, out2_c, out2_d, out2_e, out2_f, out2_g, out2_h] = deinterleaved;
         assert_eq!(cast_out(vec_a), cast_out(out2_a));
         assert_eq!(cast_out(vec_b), cast_out(out2_b));
@@ -514,12 +520,14 @@ unsafe fn load_msg_vecs_interleave(
     let (front_g, back_g) = load_2x256(msg_g);
     let (front_h, back_h) = load_2x256(msg_h);
 
-    let front_interleaved = transpose_vecs([
+    let mut front_interleaved = [
         front_a, front_b, front_c, front_d, front_e, front_f, front_g, front_h,
-    ]);
-    let back_interleaved = transpose_vecs([
+    ];
+    transpose_vecs(&mut front_interleaved);
+    let mut back_interleaved = [
         back_a, back_b, back_c, back_d, back_e, back_f, back_g, back_h,
-    ]);
+    ];
+    transpose_vecs(&mut back_interleaved);
 
     [
         front_interleaved[0],
@@ -662,7 +670,8 @@ unsafe fn compress8_transposed_inline(
 #[inline(always)]
 unsafe fn export_hashes(h_vecs: &[__m256i; 8], hash_length: u8) -> [Hash; 8] {
     // Interleave is its own inverse.
-    let deinterleaved = transpose_vecs(*h_vecs);
+    let mut deinterleaved = *h_vecs;
+    transpose_vecs(&mut deinterleaved);
     // BLAKE2 and x86 both use little-endian representation, so we can just transmute the word
     // bytes out of each de-interleaved vector.
     [
