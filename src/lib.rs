@@ -117,9 +117,44 @@ type Hash8ExactFn = unsafe fn(
     input6: &[u8],
     input7: &[u8],
 ) -> [Hash; 8];
+type Vectorize8Fn = unsafe fn(words: &mut [AlignedWords8; 8]);
+type Compress8VectorizedFn = unsafe fn(
+    vectorized_words: &mut [AlignedWords8; 8],
+    block0: &Block,
+    block1: &Block,
+    block2: &Block,
+    block3: &Block,
+    block4: &Block,
+    block5: &Block,
+    block6: &Block,
+    block7: &Block,
+    count_low: &AlignedWords8,
+    count_high: &AlignedWords8,
+    lastblock: &AlignedWords8,
+    lastnode: &AlignedWords8,
+);
+
 type StateWords = [u32; 8];
 type Block = [u8; BLOCKBYTES];
 type HexString = arrayvec::ArrayString<[u8; 2 * OUTBYTES]>;
+
+#[derive(Copy, Clone)]
+#[repr(C, align(32))]
+pub struct AlignedWords8(pub [u32; 8]);
+
+impl core::ops::Deref for AlignedWords8 {
+    type Target = [u32; 8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl core::ops::DerefMut for AlignedWords8 {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 pub fn blake2s(input: &[u8]) -> Hash {
     State::new().update(input).finalize()
@@ -792,10 +827,208 @@ pub fn hash8_exact(
     }
 }
 
+pub fn hash8(
+    params0: &Params,
+    params1: &Params,
+    params2: &Params,
+    params3: &Params,
+    params4: &Params,
+    params5: &Params,
+    params6: &Params,
+    params7: &Params,
+    input0: &[u8],
+    input1: &[u8],
+    input2: &[u8],
+    input3: &[u8],
+    input4: &[u8],
+    input5: &[u8],
+    input6: &[u8],
+    input7: &[u8],
+) -> [Hash; 8] {
+    // Keying isn't supported yet.
+    assert_eq!(0, params0.key_length);
+    assert_eq!(0, params1.key_length);
+    assert_eq!(0, params2.key_length);
+    assert_eq!(0, params3.key_length);
+    assert_eq!(0, params4.key_length);
+    assert_eq!(0, params5.key_length);
+    assert_eq!(0, params6.key_length);
+    assert_eq!(0, params7.key_length);
+
+    let fns = default_compress_impl();
+    let compress_fn = fns.0;
+    let vectorize8_fn = fns.4;
+    let compress8_vectorized_fn = fns.5;
+
+    let mut state_words8 = [
+        AlignedWords8(params0.make_words()),
+        AlignedWords8(params1.make_words()),
+        AlignedWords8(params2.make_words()),
+        AlignedWords8(params3.make_words()),
+        AlignedWords8(params4.make_words()),
+        AlignedWords8(params5.make_words()),
+        AlignedWords8(params6.make_words()),
+        AlignedWords8(params7.make_words()),
+    ];
+    unsafe {
+        vectorize8_fn(&mut state_words8);
+    }
+
+    let mut count = 0;
+    loop {
+        let update_all = input0.len() - count > BLOCKBYTES
+            && input1.len() - count > BLOCKBYTES
+            && input2.len() - count > BLOCKBYTES
+            && input3.len() - count > BLOCKBYTES
+            && input4.len() - count > BLOCKBYTES
+            && input5.len() - count > BLOCKBYTES
+            && input6.len() - count > BLOCKBYTES
+            && input7.len() - count > BLOCKBYTES;
+        let finalize_all = input0.len() - count == BLOCKBYTES
+            && input1.len() - count == BLOCKBYTES
+            && input2.len() - count == BLOCKBYTES
+            && input3.len() - count == BLOCKBYTES
+            && input4.len() - count == BLOCKBYTES
+            && input5.len() - count == BLOCKBYTES
+            && input6.len() - count == BLOCKBYTES
+            && input7.len() - count == BLOCKBYTES;
+        if !update_all && !finalize_all {
+            // If all the inputs can't be compressed in tandem, break out of
+            // the efficient loop and split the states apart.
+            break;
+        }
+
+        let block0 = array_ref!(input0, count, BLOCKBYTES);
+        let block1 = array_ref!(input1, count, BLOCKBYTES);
+        let block2 = array_ref!(input2, count, BLOCKBYTES);
+        let block3 = array_ref!(input3, count, BLOCKBYTES);
+        let block4 = array_ref!(input4, count, BLOCKBYTES);
+        let block5 = array_ref!(input5, count, BLOCKBYTES);
+        let block6 = array_ref!(input6, count, BLOCKBYTES);
+        let block7 = array_ref!(input7, count, BLOCKBYTES);
+        count += BLOCKBYTES;
+
+        let count_low = count as u32;
+        let count_high = ((count as u64) >> 32) as u32;
+        let lastblock;
+        let lastnode;
+        if finalize_all {
+            lastblock = AlignedWords8([!0; 8]);
+            lastnode = AlignedWords8([
+                if params0.last_node { !0 } else { 0 },
+                if params1.last_node { !0 } else { 0 },
+                if params2.last_node { !0 } else { 0 },
+                if params3.last_node { !0 } else { 0 },
+                if params4.last_node { !0 } else { 0 },
+                if params5.last_node { !0 } else { 0 },
+                if params6.last_node { !0 } else { 0 },
+                if params7.last_node { !0 } else { 0 },
+            ]);
+        } else {
+            lastblock = AlignedWords8([0; 8]);
+            lastnode = AlignedWords8([0; 8]);
+        }
+        unsafe {
+            compress8_vectorized_fn(
+                &mut state_words8,
+                block0,
+                block1,
+                block2,
+                block3,
+                block4,
+                block5,
+                block6,
+                block7,
+                &AlignedWords8([count_low; 8]),
+                &AlignedWords8([count_high; 8]),
+                &lastblock,
+                &lastnode,
+            );
+        }
+        if finalize_all {
+            unsafe {
+                vectorize8_fn(&mut state_words8);
+            }
+            return [
+                Hash {
+                    bytes: state_words_to_bytes(&state_words8[0]),
+                    len: params0.hash_length,
+                },
+                Hash {
+                    bytes: state_words_to_bytes(&state_words8[1]),
+                    len: params1.hash_length,
+                },
+                Hash {
+                    bytes: state_words_to_bytes(&state_words8[2]),
+                    len: params2.hash_length,
+                },
+                Hash {
+                    bytes: state_words_to_bytes(&state_words8[3]),
+                    len: params3.hash_length,
+                },
+                Hash {
+                    bytes: state_words_to_bytes(&state_words8[4]),
+                    len: params4.hash_length,
+                },
+                Hash {
+                    bytes: state_words_to_bytes(&state_words8[5]),
+                    len: params5.hash_length,
+                },
+                Hash {
+                    bytes: state_words_to_bytes(&state_words8[6]),
+                    len: params6.hash_length,
+                },
+                Hash {
+                    bytes: state_words_to_bytes(&state_words8[7]),
+                    len: params7.hash_length,
+                },
+            ];
+        }
+    }
+
+    // Unvectorize the state. Note that vectorize is its own inverse. In the
+    // SIMD implementation it's a matrix transposition, and in the portable
+    // implementation it's actually a no-op.
+    unsafe {
+        vectorize8_fn(&mut state_words8);
+    }
+    // Individually finish each input.
+    let finish = |params: &Params, words: &StateWords, input: &[u8]| -> Hash {
+        let mut state = State {
+            h: *words,
+            buf: [0; BLOCKBYTES],
+            buflen: 0,
+            count: count as u64,
+            compress_fn: compress_fn,
+            last_node: params.last_node,
+            hash_length: params.hash_length,
+        };
+        state.update(&input[count..]);
+        state.finalize()
+    };
+    [
+        finish(params0, &state_words8[0], input0),
+        finish(params1, &state_words8[1], input1),
+        finish(params2, &state_words8[2], input2),
+        finish(params3, &state_words8[3], input3),
+        finish(params4, &state_words8[4], input4),
+        finish(params5, &state_words8[5], input5),
+        finish(params6, &state_words8[6], input6),
+        finish(params7, &state_words8[7], input7),
+    ]
+}
+
 // Safety: The unsafe blocks above rely on this function to never return avx2::compress except on
 // platforms where it's safe to call.
 #[allow(unreachable_code)]
-fn default_compress_impl() -> (CompressFn, Compress8Fn, Hash8ExactFn, Hash4ExactFn) {
+fn default_compress_impl() -> (
+    CompressFn,
+    Compress8Fn,
+    Hash8ExactFn,
+    Hash4ExactFn,
+    Vectorize8Fn,
+    Compress8VectorizedFn,
+) {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     {
         #[cfg(feature = "std")]
@@ -806,6 +1039,8 @@ fn default_compress_impl() -> (CompressFn, Compress8Fn, Hash8ExactFn, Hash4Exact
                     avx2::compress8,
                     avx2::hash8_exact,
                     sse41::hash4_exact,
+                    avx2::vectorize_words8,
+                    avx2::compress8_vectorized,
                 );
             }
         }
@@ -816,6 +1051,8 @@ fn default_compress_impl() -> (CompressFn, Compress8Fn, Hash8ExactFn, Hash4Exact
         portable::compress8,
         portable::hash8_exact,
         portable::hash4_exact,
+        portable::vectorize_words8,
+        portable::compress8_vectorized,
     )
 }
 
@@ -835,7 +1072,7 @@ pub mod benchmarks {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     pub use crate::avx2::compress8_transposed_all as compress8_transposed_all_avx2;
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    pub use crate::avx2::compress8_transposed_state as compress8_transposed_state_avx2;
+    pub use crate::avx2::compress8_vectorized as compress8_vectorized_avx2;
 
     // Safety: The portable implementation should be safe to call on any platform.
     pub fn force_portable(state: &mut crate::State) {

@@ -642,3 +642,99 @@ fn test_hash8_exact() {
     assert_eq!(expected6, out6);
     assert_eq!(expected7, out7);
 }
+
+#[test]
+fn test_hash8_with_exact_inputs() {
+    let input0 = &[0xf0; 4 * BLOCKBYTES];
+    let input1 = &[0xf1; 4 * BLOCKBYTES];
+    let input2 = &[0xf2; 4 * BLOCKBYTES];
+    let input3 = &[0xf3; 4 * BLOCKBYTES];
+    let input4 = &[0xf4; 4 * BLOCKBYTES];
+    let input5 = &[0xf5; 4 * BLOCKBYTES];
+    let input6 = &[0xf6; 4 * BLOCKBYTES];
+    let input7 = &[0xf7; 4 * BLOCKBYTES];
+    let mut params0 = Params::new();
+    params0.hash_length(1).personal(b"foo").last_node(false);
+    let mut params1 = Params::new();
+    params1.hash_length(2).personal(b"foo").last_node(false);
+    let mut params2 = Params::new();
+    params2.hash_length(3).personal(b"foo").last_node(false);
+    let mut params3 = Params::new();
+    params3.hash_length(4).personal(b"foo").last_node(false);
+    let mut params4 = Params::new();
+    params4.hash_length(5).personal(b"foo").last_node(true);
+    let mut params5 = Params::new();
+    params5.hash_length(6).personal(b"foo").last_node(true);
+    let mut params6 = Params::new();
+    params6.hash_length(7).personal(b"foo").last_node(true);
+    let mut params7 = Params::new();
+    params7.hash_length(8).personal(b"foo").last_node(true);
+    let expected0 = params0.to_state().update(input0).finalize();
+    let expected1 = params1.to_state().update(input1).finalize();
+    let expected2 = params2.to_state().update(input2).finalize();
+    let expected3 = params3.to_state().update(input3).finalize();
+    let expected4 = params4.to_state().update(input4).finalize();
+    let expected5 = params5.to_state().update(input5).finalize();
+    let expected6 = params6.to_state().update(input6).finalize();
+    let expected7 = params7.to_state().update(input7).finalize();
+    let [out0, out1, out2, out3, out4, out5, out6, out7] = hash8(
+        &params0, &params1, &params2, &params3, &params4, &params5, &params6, &params7, input0,
+        input1, input2, input3, input4, input5, input6, input7,
+    );
+    assert_eq!(expected0, out0);
+    assert_eq!(expected1, out1);
+    assert_eq!(expected2, out2);
+    assert_eq!(expected3, out3);
+    assert_eq!(expected4, out4);
+    assert_eq!(expected5, out5);
+    assert_eq!(expected6, out6);
+    assert_eq!(expected7, out7);
+}
+
+#[test]
+fn test_hash8_with_inexact_inputs() {
+    let input0 = &[0xf0; 4 * BLOCKBYTES + 0];
+    let input1 = &[0xf1; 4 * BLOCKBYTES + 1];
+    let input2 = &[0xf2; 4 * BLOCKBYTES + 2];
+    let input3 = &[0xf3; 4 * BLOCKBYTES + 3];
+    let input4 = &[0xf4; 4 * BLOCKBYTES + 4];
+    let input5 = &[0xf5; 4 * BLOCKBYTES + 5];
+    let input6 = &[0xf6; 4 * BLOCKBYTES + 6];
+    let input7 = &[0xf7; 4 * BLOCKBYTES + 7];
+    let mut params0 = Params::new();
+    params0.hash_length(1).personal(b"foo").last_node(false);
+    let mut params1 = Params::new();
+    params1.hash_length(2).personal(b"foo").last_node(false);
+    let mut params2 = Params::new();
+    params2.hash_length(3).personal(b"foo").last_node(false);
+    let mut params3 = Params::new();
+    params3.hash_length(4).personal(b"foo").last_node(false);
+    let mut params4 = Params::new();
+    params4.hash_length(5).personal(b"foo").last_node(true);
+    let mut params5 = Params::new();
+    params5.hash_length(6).personal(b"foo").last_node(true);
+    let mut params6 = Params::new();
+    params6.hash_length(7).personal(b"foo").last_node(true);
+    let mut params7 = Params::new();
+    params7.hash_length(8).personal(b"foo").last_node(true);
+    let expected0 = params0.to_state().update(input0).finalize();
+    let expected1 = params1.to_state().update(input1).finalize();
+    let expected2 = params2.to_state().update(input2).finalize();
+    let expected3 = params3.to_state().update(input3).finalize();
+    let expected4 = params4.to_state().update(input4).finalize();
+    let expected5 = params5.to_state().update(input5).finalize();
+    let expected6 = params6.to_state().update(input6).finalize();
+    let expected7 = params7.to_state().update(input7).finalize();
+    let [out0, out1, out2, out3, out4, out5, out6, out7] = hash8(
+        &params0, &params1, &params2, &params3, &params4, &params5, &params6, &params7, input0,
+        input1, input2, input3, input4, input5, input6, input7,
+    );
+    assert_eq!(expected0, out0);
+    assert_eq!(expected1, out1);
+    assert_eq!(expected2, out2);
+    assert_eq!(expected3, out3);
+    assert_eq!(expected4, out4);
+    assert_eq!(expected5, out5);
+    assert_eq!(expected6, out6);
+    assert_eq!(expected7, out7);
+}

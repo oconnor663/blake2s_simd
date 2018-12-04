@@ -194,3 +194,83 @@ pub fn hash8_exact(
         params.to_state().update(input7).finalize(),
     ]
 }
+
+pub fn vectorize_words8(_words: &mut [AlignedWords8; 8]) {
+    // The portable implementation does nothing here. It leaves the state words
+    // grouped by state/input, rather than grouped by index.
+}
+
+pub fn compress8_vectorized(
+    state_words: &mut [AlignedWords8; 8],
+    block0: &Block,
+    block1: &Block,
+    block2: &Block,
+    block3: &Block,
+    block4: &Block,
+    block5: &Block,
+    block6: &Block,
+    block7: &Block,
+    count_low: &AlignedWords8,
+    count_high: &AlignedWords8,
+    lastblock: &AlignedWords8,
+    lastnode: &AlignedWords8,
+) {
+    // Note that vectorize_words8 above is a no-op. In the portable
+    // implementation, the words are still grouped by state/input.
+    compress(
+        &mut state_words[0],
+        block0,
+        count_low[0] as u64 + ((count_high[0] as u64) << 32),
+        lastblock[0],
+        lastnode[0],
+    );
+    compress(
+        &mut state_words[1],
+        block1,
+        count_low[1] as u64 + ((count_high[1] as u64) << 32),
+        lastblock[1],
+        lastnode[1],
+    );
+    compress(
+        &mut state_words[2],
+        block2,
+        count_low[2] as u64 + ((count_high[2] as u64) << 32),
+        lastblock[2],
+        lastnode[2],
+    );
+    compress(
+        &mut state_words[3],
+        block3,
+        count_low[3] as u64 + ((count_high[3] as u64) << 32),
+        lastblock[3],
+        lastnode[3],
+    );
+    compress(
+        &mut state_words[4],
+        block4,
+        count_low[4] as u64 + ((count_high[4] as u64) << 32),
+        lastblock[4],
+        lastnode[4],
+    );
+    compress(
+        &mut state_words[5],
+        block5,
+        count_low[5] as u64 + ((count_high[5] as u64) << 32),
+        lastblock[5],
+        lastnode[5],
+    );
+    compress(
+        &mut state_words[6],
+        block6,
+        count_low[6] as u64 + ((count_high[6] as u64) << 32),
+        lastblock[6],
+        lastnode[6],
+    );
+    compress(
+        &mut state_words[7],
+        block7,
+        count_low[7] as u64 + ((count_high[7] as u64) << 32),
+        lastblock[7],
+        lastnode[7],
+    );
+}

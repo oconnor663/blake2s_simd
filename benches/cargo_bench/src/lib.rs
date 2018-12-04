@@ -85,13 +85,13 @@ fn bench_blake2s_sse41_compress4_transposed(b: &mut Bencher) {
 
 #[bench]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-fn bench_blake2s_avx2_compress8_transposed_state(b: &mut Bencher) {
+fn bench_blake2s_avx2_compress8_vectorized(b: &mut Bencher) {
     if !is_x86_feature_detected!("avx2") {
         return;
     }
     b.bytes = BLOCK.len() as u64 * 8;
     unsafe {
-        let mut h_vecs = [[1; 8]; 8];
+        let mut h_vecs = [AlignedWords8([1; 8]); 8];
         let msg1 = [2; BLOCKBYTES];
         let msg2 = [3; BLOCKBYTES];
         let msg3 = [4; BLOCKBYTES];
@@ -105,7 +105,7 @@ fn bench_blake2s_avx2_compress8_transposed_state(b: &mut Bencher) {
         let lastblock = mem::zeroed();
         let lastnode = mem::zeroed();
         b.iter(|| {
-            benchmarks::compress8_transposed_state_avx2(
+            benchmarks::compress8_vectorized_avx2(
                 &mut h_vecs,
                 &msg1,
                 &msg2,
@@ -115,10 +115,10 @@ fn bench_blake2s_avx2_compress8_transposed_state(b: &mut Bencher) {
                 &msg6,
                 &msg7,
                 &msg8,
-                count_low,
-                count_high,
-                lastblock,
-                lastnode,
+                &count_low,
+                &count_high,
+                &lastblock,
+                &lastnode,
             );
             test::black_box(&mut h_vecs);
         });
@@ -281,7 +281,7 @@ fn bench_blake2s_hash4_one_mb(b: &mut Bencher) {
 }
 
 #[bench]
-fn bench_blake2s_hash8_one_block(b: &mut Bencher) {
+fn bench_blake2s_hash8_exact_one_block(b: &mut Bencher) {
     b.bytes = 8 * BLOCKBYTES as u64;
     let buf = vec![1; BLOCKBYTES];
     b.iter(|| {
@@ -300,7 +300,7 @@ fn bench_blake2s_hash8_one_block(b: &mut Bencher) {
 }
 
 #[bench]
-fn bench_blake2s_hash8_4096(b: &mut Bencher) {
+fn bench_blake2s_hash8_exact_4096(b: &mut Bencher) {
     b.bytes = 8 * 4096 as u64;
     let buf = vec![1; 4096];
     b.iter(|| {
@@ -319,11 +319,89 @@ fn bench_blake2s_hash8_4096(b: &mut Bencher) {
 }
 
 #[bench]
-fn bench_blake2s_hash8_one_mb(b: &mut Bencher) {
+fn bench_blake2s_hash8_exact_one_mb(b: &mut Bencher) {
     b.bytes = 8 * (1 << 20);
     let buf = vec![1; 1 << 20];
     b.iter(|| {
         hash8_exact(
+            &Params::new(),
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+        )
+    });
+}
+
+#[bench]
+fn bench_blake2s_hash8_inexact_one_block(b: &mut Bencher) {
+    b.bytes = 8 * BLOCKBYTES as u64;
+    let buf = vec![1; BLOCKBYTES];
+    b.iter(|| {
+        hash8(
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+        )
+    });
+}
+
+#[bench]
+fn bench_blake2s_hash8_inexact_4096(b: &mut Bencher) {
+    b.bytes = 8 * 4096 as u64;
+    let buf = vec![1; 4096];
+    b.iter(|| {
+        hash8(
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+            &buf,
+        )
+    });
+}
+
+#[bench]
+fn bench_blake2s_hash8_inexact_one_mb(b: &mut Bencher) {
+    b.bytes = 8 * (1 << 20);
+    let buf = vec![1; 1 << 20];
+    b.iter(|| {
+        hash8(
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
+            &Params::new(),
             &Params::new(),
             &buf,
             &buf,

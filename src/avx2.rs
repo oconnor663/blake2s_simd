@@ -5,6 +5,7 @@ use core::arch::x86_64::*;
 
 use core::mem;
 
+use crate::AlignedWords8;
 use crate::Block;
 use crate::Hash;
 use crate::Params;
@@ -16,11 +17,6 @@ use crate::SIGMA;
 #[inline(always)]
 unsafe fn loadu(p: *const u32) -> __m256i {
     _mm256_loadu_si256(p as *const __m256i)
-}
-
-#[inline(always)]
-unsafe fn storeu(p: *mut u32, a: __m256i) {
-    _mm256_storeu_si256(p as *mut __m256i, a)
 }
 
 #[inline(always)]
@@ -440,6 +436,12 @@ unsafe fn transpose_vecs(vecs: &mut [__m256i; 8]) {
     vecs[7] = abcdefg_7;
 }
 
+#[target_feature(enable = "avx2")]
+pub unsafe fn vectorize_words8(words: &mut [AlignedWords8; 8]) {
+    let vecs = &mut *(words as *mut _ as *mut [__m256i; 8]);
+    transpose_vecs(vecs);
+}
+
 #[cfg(test)]
 #[test]
 fn test_transpose_vecs() {
@@ -553,8 +555,8 @@ unsafe fn load_msg_vecs_interleave(
 // necessarily aligned. It accepts input in the usual form of contiguous bytes,
 // and it pays the cost of transposing the input.
 #[target_feature(enable = "avx2")]
-pub unsafe fn compress8_transposed_state(
-    states: &mut [[u32; 8]; 8],
+pub unsafe fn compress8_vectorized(
+    states: &mut [AlignedWords8; 8],
     msg0: &Block,
     msg1: &Block,
     msg2: &Block,
@@ -563,41 +565,23 @@ pub unsafe fn compress8_transposed_state(
     msg5: &Block,
     msg6: &Block,
     msg7: &Block,
-    count_low: __m256i,
-    count_high: __m256i,
-    lastblock: __m256i,
-    lastnode: __m256i,
+    count_low: &AlignedWords8,
+    count_high: &AlignedWords8,
+    lastblock: &AlignedWords8,
+    lastnode: &AlignedWords8,
 ) {
-    let mut h_vecs = [
-        loadu(states[0].as_ptr()),
-        loadu(states[1].as_ptr()),
-        loadu(states[2].as_ptr()),
-        loadu(states[3].as_ptr()),
-        loadu(states[4].as_ptr()),
-        loadu(states[5].as_ptr()),
-        loadu(states[6].as_ptr()),
-        loadu(states[7].as_ptr()),
-    ];
+    let mut h_vecs = &mut *(states as *mut _ as *mut [__m256i; 8]);
 
     let msg_vecs = load_msg_vecs_interleave(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7);
 
     compress8_transposed_inline(
         &mut h_vecs,
         &msg_vecs,
-        count_low,
-        count_high,
-        lastblock,
-        lastnode,
+        mem::transmute(*count_low),
+        mem::transmute(*count_high),
+        mem::transmute(*lastblock),
+        mem::transmute(*lastnode),
     );
-
-    storeu(states[0].as_mut_ptr(), h_vecs[0]);
-    storeu(states[1].as_mut_ptr(), h_vecs[1]);
-    storeu(states[2].as_mut_ptr(), h_vecs[2]);
-    storeu(states[3].as_mut_ptr(), h_vecs[3]);
-    storeu(states[4].as_mut_ptr(), h_vecs[4]);
-    storeu(states[5].as_mut_ptr(), h_vecs[5]);
-    storeu(states[6].as_mut_ptr(), h_vecs[6]);
-    storeu(states[7].as_mut_ptr(), h_vecs[7]);
 }
 
 #[target_feature(enable = "avx2")]
