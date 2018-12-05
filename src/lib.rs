@@ -801,9 +801,8 @@ fn default_compress_impl() -> (CompressFn, Compress8Fn, Hash8ExactFn, Hash4Exact
         #[cfg(feature = "std")]
         {
             if is_x86_feature_detected!("avx2") {
-                // Note that there's no AVX2 compress implementation for BLAKE2s. Only compress8.
                 return (
-                    portable::compress,
+                    sse41::compress,
                     avx2::compress8,
                     avx2::hash8_exact,
                     sse41::hash4_exact,
