@@ -154,6 +154,44 @@ fn bench_blake2s_avx2_compress8_transposed_all(b: &mut Bencher) {
 }
 
 #[bench]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn bench_blake2s_avx2_compress8_transposed_all_with_separate_msg_transpose(b: &mut Bencher) {
+    if !is_x86_feature_detected!("avx2") {
+        return;
+    }
+    b.bytes = BLOCK.len() as u64 * 8;
+    unsafe {
+        let mut h_vecs = mem::transmute([1u8; 32 * 8]);
+        let msg_blocks = [[2u8; 64]; 8];
+        let count_low = mem::transmute([3u8; 32]);
+        let count_high = mem::transmute([4u8; 32]);
+        let lastblock = mem::transmute([5u8; 32]);
+        let lastnode = mem::transmute([6u8; 32]);
+        b.iter(|| {
+            let msg_vecs = benchmarks::transpose_msg_vecs_avx2(
+                &msg_blocks[0],
+                &msg_blocks[1],
+                &msg_blocks[2],
+                &msg_blocks[3],
+                &msg_blocks[4],
+                &msg_blocks[5],
+                &msg_blocks[6],
+                &msg_blocks[7],
+            );
+            benchmarks::compress8_transposed_all_avx2(
+                &mut h_vecs,
+                &msg_vecs,
+                count_low,
+                count_high,
+                lastblock,
+                lastnode,
+            );
+            test::black_box(&mut h_vecs);
+        });
+    }
+}
+
+#[bench]
 fn bench_blake2s_portable_compress(b: &mut Bencher) {
     b.bytes = BLOCK.len() as u64;
     let mut h = [0; 8];
@@ -413,4 +451,132 @@ fn bench_blake2s_hash8_inexact_one_mb(b: &mut Bencher) {
             &buf,
         )
     });
+}
+
+#[bench]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn bench_blake2s_avx2_compress8_to_bytes_together(b: &mut Bencher) {
+    if !is_x86_feature_detected!("avx2") {
+        return;
+    }
+    b.bytes = BLOCK.len() as u64 * 8;
+    unsafe {
+        let mut h_vecs = [AlignedWords8([1; 8]); 8];
+        let msg1 = [2; BLOCKBYTES];
+        let msg2 = [3; BLOCKBYTES];
+        let msg3 = [4; BLOCKBYTES];
+        let msg4 = [5; BLOCKBYTES];
+        let msg5 = [6; BLOCKBYTES];
+        let msg6 = [7; BLOCKBYTES];
+        let msg7 = [8; BLOCKBYTES];
+        let msg8 = [9; BLOCKBYTES];
+        let count_low = mem::zeroed();
+        let count_high = mem::zeroed();
+        let lastblock = mem::zeroed();
+        let lastnode = mem::zeroed();
+        let mut out0 = [0u8; 32];
+        let mut out1 = [0u8; 32];
+        let mut out2 = [0u8; 32];
+        let mut out3 = [0u8; 32];
+        let mut out4 = [0u8; 32];
+        let mut out5 = [0u8; 32];
+        let mut out6 = [0u8; 32];
+        let mut out7 = [0u8; 32];
+        b.iter(|| {
+            benchmarks::compress8_vectorized_to_bytes_avx2(
+                &mut h_vecs,
+                &msg1,
+                &msg2,
+                &msg3,
+                &msg4,
+                &msg5,
+                &msg6,
+                &msg7,
+                &msg8,
+                &count_low,
+                &count_high,
+                &lastblock,
+                &lastnode,
+                &mut out0,
+                &mut out1,
+                &mut out2,
+                &mut out3,
+                &mut out4,
+                &mut out5,
+                &mut out6,
+                &mut out7,
+            );
+            test::black_box(&h_vecs);
+            test::black_box(&out0);
+            test::black_box(&out1);
+            test::black_box(&out2);
+            test::black_box(&out3);
+            test::black_box(&out4);
+            test::black_box(&out5);
+            test::black_box(&out6);
+            test::black_box(&out7);
+        });
+    }
+}
+
+#[bench]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn bench_blake2s_avx2_compress8_to_bytes_separate(b: &mut Bencher) {
+    if !is_x86_feature_detected!("avx2") {
+        return;
+    }
+    b.bytes = BLOCK.len() as u64 * 8;
+    unsafe {
+        let mut h_vecs = [AlignedWords8([1; 8]); 8];
+        let msg1 = [2; BLOCKBYTES];
+        let msg2 = [3; BLOCKBYTES];
+        let msg3 = [4; BLOCKBYTES];
+        let msg4 = [5; BLOCKBYTES];
+        let msg5 = [6; BLOCKBYTES];
+        let msg6 = [7; BLOCKBYTES];
+        let msg7 = [8; BLOCKBYTES];
+        let msg8 = [9; BLOCKBYTES];
+        let count_low = mem::zeroed();
+        let count_high = mem::zeroed();
+        let lastblock = mem::zeroed();
+        let lastnode = mem::zeroed();
+        let mut out0 = [0u8; 32];
+        let mut out1 = [0u8; 32];
+        let mut out2 = [0u8; 32];
+        let mut out3 = [0u8; 32];
+        let mut out4 = [0u8; 32];
+        let mut out5 = [0u8; 32];
+        let mut out6 = [0u8; 32];
+        let mut out7 = [0u8; 32];
+        b.iter(|| {
+            benchmarks::compress8_vectorized_avx2(
+                &mut h_vecs,
+                &msg1,
+                &msg2,
+                &msg3,
+                &msg4,
+                &msg5,
+                &msg6,
+                &msg7,
+                &msg8,
+                &count_low,
+                &count_high,
+                &lastblock,
+                &lastnode,
+            );
+            benchmarks::export_bytes_avx2(
+                &h_vecs, &mut out0, &mut out1, &mut out2, &mut out3, &mut out4, &mut out5,
+                &mut out6, &mut out7,
+            );
+            test::black_box(&h_vecs);
+            test::black_box(&out0);
+            test::black_box(&out1);
+            test::black_box(&out2);
+            test::black_box(&out3);
+            test::black_box(&out4);
+            test::black_box(&out5);
+            test::black_box(&out6);
+            test::black_box(&out7);
+        });
+    }
 }

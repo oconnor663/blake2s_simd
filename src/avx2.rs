@@ -551,6 +551,22 @@ unsafe fn load_msg_vecs_interleave(
     ]
 }
 
+#[target_feature(enable = "avx2")]
+pub unsafe fn transpose_msg_vecs(
+    msg0: &[u8; BLOCKBYTES],
+    msg1: &[u8; BLOCKBYTES],
+    msg2: &[u8; BLOCKBYTES],
+    msg3: &[u8; BLOCKBYTES],
+    msg4: &[u8; BLOCKBYTES],
+    msg5: &[u8; BLOCKBYTES],
+    msg6: &[u8; BLOCKBYTES],
+    msg7: &[u8; BLOCKBYTES],
+) -> [AlignedWords8; 16] {
+    mem::transmute(load_msg_vecs_interleave(
+        msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7,
+    ))
+}
+
 // This function assumes that the state is in transposed form, but not
 // necessarily aligned. It accepts input in the usual form of contiguous bytes,
 // and it pays the cost of transposing the input.
@@ -570,12 +586,12 @@ pub unsafe fn compress8_vectorized(
     lastblock: &AlignedWords8,
     lastnode: &AlignedWords8,
 ) {
-    let mut h_vecs = &mut *(states as *mut _ as *mut [__m256i; 8]);
+    let h_vecs = &mut *(states as *mut _ as *mut [__m256i; 8]);
 
     let msg_vecs = load_msg_vecs_interleave(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7);
 
     compress8_transposed_inline(
-        &mut h_vecs,
+        h_vecs,
         &msg_vecs,
         mem::transmute(*count_low),
         mem::transmute(*count_high),
@@ -586,14 +602,21 @@ pub unsafe fn compress8_vectorized(
 
 #[target_feature(enable = "avx2")]
 pub unsafe fn compress8_transposed_all(
-    h_vecs: &mut [__m256i; 8],
-    msg_vecs: &[__m256i; 16],
-    count_low: __m256i,
-    count_high: __m256i,
-    lastblock: __m256i,
-    lastnode: __m256i,
+    h_vecs: &mut [AlignedWords8; 8],
+    msg_vecs: &[AlignedWords8; 16],
+    count_low: AlignedWords8,
+    count_high: AlignedWords8,
+    lastblock: AlignedWords8,
+    lastnode: AlignedWords8,
 ) {
-    compress8_transposed_inline(h_vecs, msg_vecs, count_low, count_high, lastblock, lastnode);
+    compress8_transposed_inline(
+        mem::transmute(h_vecs),
+        mem::transmute(msg_vecs),
+        mem::transmute(count_low),
+        mem::transmute(count_high),
+        mem::transmute(lastblock),
+        mem::transmute(lastnode),
+    );
 }
 
 // This core function assumes that both the state words and the message blocks
@@ -649,6 +672,79 @@ unsafe fn compress8_transposed_inline(
     h_vecs[5] = xor(h_vecs[5], xor(v[5], v[13]));
     h_vecs[6] = xor(h_vecs[6], xor(v[6], v[14]));
     h_vecs[7] = xor(h_vecs[7], xor(v[7], v[15]));
+}
+
+#[target_feature(enable = "avx2")]
+pub unsafe fn export_bytes(
+    words: &[AlignedWords8; 8],
+    out0: &mut [u8; 32],
+    out1: &mut [u8; 32],
+    out2: &mut [u8; 32],
+    out3: &mut [u8; 32],
+    out4: &mut [u8; 32],
+    out5: &mut [u8; 32],
+    out6: &mut [u8; 32],
+    out7: &mut [u8; 32],
+) {
+    let mut h_vecs: [__m256i; 8] = mem::transmute(*words);
+    transpose_vecs(&mut h_vecs);
+    *out0 = mem::transmute(h_vecs[0]);
+    *out1 = mem::transmute(h_vecs[1]);
+    *out2 = mem::transmute(h_vecs[2]);
+    *out3 = mem::transmute(h_vecs[3]);
+    *out4 = mem::transmute(h_vecs[4]);
+    *out5 = mem::transmute(h_vecs[5]);
+    *out6 = mem::transmute(h_vecs[6]);
+    *out7 = mem::transmute(h_vecs[7]);
+}
+
+#[target_feature(enable = "avx2")]
+pub unsafe fn compress8_vectorized_to_bytes(
+    states: &mut [AlignedWords8; 8],
+    msg0: &Block,
+    msg1: &Block,
+    msg2: &Block,
+    msg3: &Block,
+    msg4: &Block,
+    msg5: &Block,
+    msg6: &Block,
+    msg7: &Block,
+    count_low: &AlignedWords8,
+    count_high: &AlignedWords8,
+    lastblock: &AlignedWords8,
+    lastnode: &AlignedWords8,
+    out0: &mut [u8; 32],
+    out1: &mut [u8; 32],
+    out2: &mut [u8; 32],
+    out3: &mut [u8; 32],
+    out4: &mut [u8; 32],
+    out5: &mut [u8; 32],
+    out6: &mut [u8; 32],
+    out7: &mut [u8; 32],
+) {
+    let mut h_vecs = &mut *(states as *mut _ as *mut [__m256i; 8]);
+
+    let msg_vecs = load_msg_vecs_interleave(msg0, msg1, msg2, msg3, msg4, msg5, msg6, msg7);
+
+    compress8_transposed_inline(
+        &mut h_vecs,
+        &msg_vecs,
+        mem::transmute(*count_low),
+        mem::transmute(*count_high),
+        mem::transmute(*lastblock),
+        mem::transmute(*lastnode),
+    );
+
+    let mut copy = *h_vecs;
+    transpose_vecs(&mut copy);
+    *out0 = mem::transmute(copy[0]);
+    *out1 = mem::transmute(copy[1]);
+    *out2 = mem::transmute(copy[2]);
+    *out3 = mem::transmute(copy[3]);
+    *out4 = mem::transmute(copy[4]);
+    *out5 = mem::transmute(copy[5]);
+    *out6 = mem::transmute(copy[6]);
+    *out7 = mem::transmute(copy[7]);
 }
 
 #[inline(always)]

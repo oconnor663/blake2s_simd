@@ -103,9 +103,13 @@ type Compress8Fn = unsafe fn(
     lastnode6: u32,
     lastnode7: u32,
 );
-type Hash4ExactFn =
-    unsafe fn(params: &Params, input0: &[u8], input1: &[u8], input2: &[u8], input3: &[u8])
-        -> [Hash; 4];
+type Hash4ExactFn = unsafe fn(
+    params: &Params,
+    input0: &[u8],
+    input1: &[u8],
+    input2: &[u8],
+    input3: &[u8],
+) -> [Hash; 4];
 type Hash8ExactFn = unsafe fn(
     params: &Params,
     input0: &[u8],
@@ -1073,6 +1077,12 @@ pub mod benchmarks {
     pub use crate::avx2::compress8_transposed_all as compress8_transposed_all_avx2;
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     pub use crate::avx2::compress8_vectorized as compress8_vectorized_avx2;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    pub use crate::avx2::compress8_vectorized_to_bytes as compress8_vectorized_to_bytes_avx2;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    pub use crate::avx2::export_bytes as export_bytes_avx2;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    pub use crate::avx2::transpose_msg_vecs as transpose_msg_vecs_avx2;
 
     // Safety: The portable implementation should be safe to call on any platform.
     pub fn force_portable(state: &mut crate::State) {
